@@ -1,4 +1,4 @@
-import { useState, useReducer, useEffect, useCallback } from 'react';
+import { useState, useReducer, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 import init, * as wasm from './pkg/image_app.js';
 import ReactCrop, { type Crop } from 'react-image-crop';
@@ -52,6 +52,7 @@ function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [crop, setCrop] = useState<Crop>();
   const [isWasmReady, setWasmReady] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     init().then(() => {
@@ -109,25 +110,65 @@ function App() {
   };
 
   const handleCrop = () => {
-    if (!state.originalImage || !crop || !crop.width || !crop.height || !isWasmReady) return;
+    if (!state.originalImage || !crop || !crop.width || !crop.height || !isWasmReady) {
+      console.log('Crop conditions not met:', {
+        hasImage: !!state.originalImage,
+        hasCrop: !!crop,
+        cropWidth: crop?.width,
+        cropHeight: crop?.height,
+        wasmReady: isWasmReady
+      });
+      return;
+    }
     dispatch({ type: 'START_LOADING' });
 
-    const img = document.querySelector<HTMLImageElement>('.ReactCrop__image');
-    if(!img) return;
+    const img = imgRef.current;
+    if(!img) {
+      console.log('Image ref not available');
+      return;
+    }
+
+    console.log('Found image element:', {
+      className: img.className,
+      naturalWidth: img.naturalWidth,
+      naturalHeight: img.naturalHeight,
+      displayWidth: img.width,
+      displayHeight: img.height
+    });
 
     const scaleX = img.naturalWidth / img.width;
     const scaleY = img.naturalHeight / img.height;
 
-    const cropped = wasm.crop(
-      state.originalImage.data,
-      Math.round(crop.x * scaleX),
-      Math.round(crop.y * scaleY),
-      Math.round(crop.width * scaleX),
-      Math.round(crop.height * scaleY)
-    );
-    const url = URL.createObjectURL(new Blob([cropped]));
-    dispatch({type: 'SET_IMAGE', payload: {data: cropped, url}});
-    setCrop(undefined); // トリミング選択をリセット
+    const cropParams = {
+      x: Math.round(crop.x * scaleX),
+      y: Math.round(crop.y * scaleY),
+      width: Math.round(crop.width * scaleX),
+      height: Math.round(crop.height * scaleY)
+    };
+
+    console.log('Crop parameters:', {
+      original: crop,
+      imgDimensions: { natural: { width: img.naturalWidth, height: img.naturalHeight }, display: { width: img.width, height: img.height } },
+      scale: { scaleX, scaleY },
+      final: cropParams
+    });
+
+    try {
+      const cropped = wasm.crop(
+        state.originalImage.data,
+        cropParams.x,
+        cropParams.y,
+        cropParams.width,
+        cropParams.height
+      );
+      console.log('Crop result length:', cropped.length);
+      const url = URL.createObjectURL(new Blob([cropped]));
+      dispatch({type: 'SET_IMAGE', payload: {data: cropped, url}});
+      setCrop(undefined); // トリミング選択をリセット
+    } catch (error) {
+      console.error('Crop failed:', error);
+      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
+    }
   };
 
   if (!isWasmReady) {
@@ -135,43 +176,132 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <header>
-        <h1>Rust/WASM Image Editor</h1>
-        <input type="file" onChange={handleFileChange} accept="image/*" />
-      </header>
-      <main className={!state.originalImage ? 'disabled' : ''}>
-        <div className="controls">
-          <h3>調整</h3>
-          {Object.keys(state.params).map((key) => {
-            const paramKey = key as keyof State['params'];
-            const min = -100;
-            const max = 100;
-            return (<div key={key} className="control-item">
-              <label>{key}</label>
-              <input type="range" min={min} max={max} value={state.params[paramKey]} onChange={(e) => handleParamChange(paramKey, e.target.value)} />
-              <span>{state.params[paramKey]}</span>
-            </div>)
-          })}
-          <button onClick={() => dispatch({type: 'RESET_PARAMS'})}>リセット</button>
-          <h3 style={{marginTop: '20px'}}>操作</h3>
-          <button onClick={() => handleRotate(90)}>90°回転</button>
-          <button onClick={handleCrop} disabled={!crop?.width}>トリミング実行</button>
+    <div className="photoshop-app">
+      {/* Header */}
+      <div className="app-header">
+        <div className="app-title">Rust/WASM Image Editor</div>
+        <div className="header-controls">
+          <input 
+            type="file" 
+            onChange={handleFileChange} 
+            accept="image/*" 
+            className="file-input"
+            id="file-input"
+          />
+          <label htmlFor="file-input" className="header-button" title="画像を開く">
+            📁 ファイルを開く
+          </label>
+          <button 
+            className="header-button" 
+            onClick={() => handleRotate(90)} 
+            title="90°回転"
+            disabled={!state.originalImage}
+          >
+            🔄 回転
+          </button>
+          <button 
+            className="header-button" 
+            onClick={handleCrop} 
+            disabled={!crop?.width}
+            title="トリミング実行"
+          >
+            ✂️ トリミング
+          </button>
+          <button 
+            className="header-button" 
+            onClick={() => dispatch({type: 'RESET_PARAMS'})}
+            title="調整をリセット"
+            disabled={!state.originalImage}
+          >
+            🔄 リセット
+          </button>
         </div>
-        <div className="image-view">
-          {state.originalImage ? (
-            <div>
-              <h3>画像プレビュー</h3>
-              <ReactCrop crop={crop} onChange={c => setCrop(c)}>
-                <img src={state.processedImageUrl || state.originalImage.url} alt="Processed" />
-              </ReactCrop>
+      </div>
+
+      <div className="workspace">
+        {/* Center Canvas */}
+        <div className="canvas-area">
+          <div className="canvas-content">
+            {state.originalImage ? (
+              <div className="canvas-viewport">
+                <ReactCrop 
+                  crop={crop} 
+                  onChange={c => setCrop(c)}
+                  onComplete={c => setCrop(c)}
+                  aspect={undefined}
+                  keepSelection={true}
+                  className="image-crop"
+                >
+                  <img 
+                    ref={imgRef}
+                    src={state.processedImageUrl || state.originalImage.url} 
+                    alt="Processed" 
+                    className="canvas-image"
+                  />
+                </ReactCrop>
+              </div>
+            ) : (
+              <div className="canvas-placeholder">
+                <div className="placeholder-content">
+                  <div className="placeholder-icon">🖼️</div>
+                  <div className="placeholder-text">
+                    <h3>画像を選択してください</h3>
+                    <p>上部の「ファイルを開く」ボタンをクリックして画像を選択してください</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Panel - Adjustments */}
+        <div className="right-panel">
+          <div className="panel-group">
+            <div className="panel-header">
+              <h3>画像調整</h3>
             </div>
-          ) : (
-            <div className="placeholder">画像を選択してください</div>
-          )}
+            <div className="panel-content">
+              {Object.keys(state.params).map((key) => {
+                const paramKey = key as keyof State['params'];
+                const min = -100;
+                const max = 100;
+                return (
+                  <div key={key} className="adjustment-item">
+                    <label className="adjustment-label">{key}</label>
+                    <div className="adjustment-control">
+                      <input 
+                        type="range" 
+                        min={min} 
+                        max={max} 
+                        value={state.params[paramKey]} 
+                        onChange={(e) => handleParamChange(paramKey, e.target.value)}
+                        className="adjustment-slider"
+                        disabled={!state.originalImage}
+                      />
+                      <input 
+                        type="number" 
+                        value={state.params[paramKey]} 
+                        onChange={(e) => handleParamChange(paramKey, e.target.value)}
+                        className="adjustment-input"
+                        disabled={!state.originalImage}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </main>
-      {state.isLoading && state.originalImage && <div className="loader">処理中...</div>}
+      </div>
+
+      {/* Status Bar */}
+      <div className="status-bar">
+        <div className="status-center">
+          {state.originalImage ? `画像サイズ: ${imgRef.current?.naturalWidth || 0} × ${imgRef.current?.naturalHeight || 0}px` : '画像が選択されていません'}
+        </div>
+      </div>
+
+      {state.isLoading && state.originalImage && <div className="processing-indicator">処理中...</div>}
     </div>
   );
 }

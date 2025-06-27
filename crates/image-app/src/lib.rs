@@ -57,11 +57,15 @@ pub fn rotate(image_data: &[u8], angle: u32) -> Vec<u8> {
 #[wasm_bindgen]
 pub fn crop(image_data: &[u8], x: u32, y: u32, width: u32, height: u32) -> Vec<u8> {
     let img = load_image(image_data);
+    log("Crop function called");
+    
     if x + width > img.width() || y + height > img.height() {
         log("Error: Crop area is out of bounds.");
         return image_data.to_vec();
     }
+    
     let processed = img.crop_imm(x, y, width, height);
+    log("Crop successful");
     to_bytes(&processed)
 }
 
