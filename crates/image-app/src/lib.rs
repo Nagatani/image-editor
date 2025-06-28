@@ -186,3 +186,18 @@ pub fn rotate_arbitrary(image_data: &[u8], angle: f32) -> Vec<u8> {
     log("Arbitrary rotation successful");
     to_bytes(&processed)
 }
+
+#[wasm_bindgen]
+pub fn resize(image_data: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Resize function called");
+    
+    if width == 0 || height == 0 {
+        log("Error: Width and height must be greater than 0");
+        return image_data.to_vec();
+    }
+    
+    let processed = img.resize(width, height, image::imageops::FilterType::Lanczos3);
+    log("Resize successful");
+    to_bytes(&processed)
+}

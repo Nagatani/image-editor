@@ -15,11 +15,17 @@ type State = {
     saturation: number;
     temperature: number;
   };
+  resizeParams: {
+    width: number;
+    height: number;
+    aspectLocked: boolean;
+  };
 };
 
 type Action =
   | { type: 'SET_IMAGE'; payload: { data: Uint8Array; url: string } }
   | { type: 'SET_PARAM'; payload: { key: keyof State['params']; value: number } }
+  | { type: 'SET_RESIZE_PARAM'; payload: { key: keyof State['resizeParams']; value: number | boolean } }
   | { type: 'START_LOADING' }
   | { type: 'SET_PROCESSED_IMAGE'; payload: string }
   | { type: 'RESET_PARAMS' };
@@ -29,14 +35,27 @@ const initialState: State = {
   processedImageUrl: null,
   isLoading: true,
   params: { brightness: 0, contrast: 0, saturation: 0, temperature: 0 },
+  resizeParams: { width: 800, height: 600, aspectLocked: true },
 };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
-    case 'SET_IMAGE':
-      return { ...initialState, isLoading: false, originalImage: action.payload, processedImageUrl: action.payload.url };
+    case 'SET_IMAGE': {
+      const newState = { ...initialState, isLoading: false, originalImage: action.payload, processedImageUrl: action.payload.url };
+      if (action.payload.data) {
+        // Update resize params with actual image dimensions
+        const img = new Image();
+        img.onload = () => {
+          newState.resizeParams = { ...newState.resizeParams, width: img.naturalWidth, height: img.naturalHeight };
+        };
+        img.src = action.payload.url;
+      }
+      return newState;
+    }
     case 'SET_PARAM':
       return { ...state, params: { ...state.params, [action.payload.key]: action.payload.value } };
+    case 'SET_RESIZE_PARAM':
+      return { ...state, resizeParams: { ...state.resizeParams, [action.payload.key]: action.payload.value } };
     case 'START_LOADING':
       return { ...state, isLoading: true };
     case 'SET_PROCESSED_IMAGE':
@@ -169,6 +188,40 @@ function App() {
     } catch (error) {
       console.error('Arbitrary rotation failed:', error);
       dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
+    }
+  };
+
+  const handleResize = () => {
+    if (!state.originalImage || !isWasmReady) return;
+    dispatch({ type: 'START_LOADING' });
+    
+    try {
+      const resized = wasm.resize(state.originalImage.data, state.resizeParams.width, state.resizeParams.height);
+      console.log('Resize result length:', resized.length);
+      const url = URL.createObjectURL(new Blob([resized]));
+      dispatch({type: 'SET_IMAGE', payload: {data: resized, url}});
+    } catch (error) {
+      console.error('Resize failed:', error);
+      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
+    }
+  };
+
+  const handleResizeParamChange = (key: keyof State['resizeParams'], value: string | boolean) => {
+    if (key === 'aspectLocked') {
+      dispatch({ type: 'SET_RESIZE_PARAM', payload: { key, value: value as boolean } });
+    } else {
+      const numValue = Number(value);
+      if (key === 'width' && state.resizeParams.aspectLocked && imgRef.current) {
+        const aspectRatio = imgRef.current.naturalHeight / imgRef.current.naturalWidth;
+        dispatch({ type: 'SET_RESIZE_PARAM', payload: { key: 'width', value: numValue } });
+        dispatch({ type: 'SET_RESIZE_PARAM', payload: { key: 'height', value: Math.round(numValue * aspectRatio) } });
+      } else if (key === 'height' && state.resizeParams.aspectLocked && imgRef.current) {
+        const aspectRatio = imgRef.current.naturalWidth / imgRef.current.naturalHeight;
+        dispatch({ type: 'SET_RESIZE_PARAM', payload: { key: 'height', value: numValue } });
+        dispatch({ type: 'SET_RESIZE_PARAM', payload: { key: 'width', value: Math.round(numValue * aspectRatio) } });
+      } else {
+        dispatch({ type: 'SET_RESIZE_PARAM', payload: { key, value: numValue } });
+      }
     }
   };
 
@@ -398,6 +451,63 @@ function App() {
                 title="回転を適用"
               >
                 🔄 回転を適用
+              </button>
+            </div>
+          </div>
+
+          <div className="panel-group">
+            <div className="panel-header">
+              <h3>リサイズ</h3>
+            </div>
+            <div className="panel-content">
+              <div className="adjustment-item">
+                <label className="adjustment-label">
+                  <input 
+                    type="checkbox" 
+                    checked={state.resizeParams.aspectLocked}
+                    onChange={(e) => handleResizeParamChange('aspectLocked', e.target.checked)}
+                    disabled={!state.originalImage}
+                  />
+                  アスペクト比を保持
+                </label>
+              </div>
+              <div className="adjustment-item">
+                <label className="adjustment-label">幅 (px)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="number" 
+                    value={state.resizeParams.width} 
+                    onChange={(e) => handleResizeParamChange('width', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={1}
+                    max={5000}
+                    style={{ width: '80px' }}
+                  />
+                </div>
+              </div>
+              <div className="adjustment-item">
+                <label className="adjustment-label">高さ (px)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="number" 
+                    value={state.resizeParams.height} 
+                    onChange={(e) => handleResizeParamChange('height', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={1}
+                    max={5000}
+                    style={{ width: '80px' }}
+                  />
+                </div>
+              </div>
+              <button 
+                className="apply-rotation-button"
+                onClick={handleResize}
+                disabled={!state.originalImage || (state.resizeParams.width === 0 || state.resizeParams.height === 0)}
+                title="リサイズを適用"
+              >
+                📏 リサイズを適用
               </button>
             </div>
           </div>

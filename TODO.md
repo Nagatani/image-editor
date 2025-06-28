@@ -18,11 +18,11 @@ This document tracks the implementation progress of new features for the Rust/WA
   - [x] Add angle input slider in React UI
   - [x] Handle edge cases (image cropping after rotation)
   - [x] Test implementation
-- [ ] **Image Resize** - Scale image with width/height specification
-  - [ ] Add `resize(width: u32, height: u32)` function in Rust
-  - [ ] Add resize controls in React UI
-  - [ ] Implement aspect ratio lock option
-  - [ ] Test implementation
+- [x] **Image Resize** - Scale image with width/height specification
+  - [x] Add `resize(width: u32, height: u32)` function in Rust
+  - [x] Add resize controls in React UI
+  - [x] Implement aspect ratio lock option
+  - [x] Test implementation
 
 ### 1.2 Basic Filters
 - [ ] **Grayscale Conversion** - Convert to black and white
@@ -198,8 +198,8 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Status Tracking
 
 - **Total Features**: 27 major features
-- **Completed**: 3
+- **Completed**: 4
 - **In Progress**: 0
-- **Remaining**: 24
+- **Remaining**: 23
 
 Last Updated: [Current Date]
