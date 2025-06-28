@@ -140,6 +140,21 @@ function App() {
     }
   };
 
+  const handleFlipVertical = () => {
+    if (!state.originalImage || !isWasmReady) return;
+    dispatch({ type: 'START_LOADING' });
+    
+    try {
+      const flipped = wasm.flip_vertical(state.originalImage.data);
+      console.log('Vertical flip result length:', flipped.length);
+      const url = URL.createObjectURL(new Blob([flipped]));
+      dispatch({type: 'SET_IMAGE', payload: {data: flipped, url}});
+    } catch (error) {
+      console.error('Vertical flip failed:', error);
+      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
+    }
+  };
+
   const handleCrop = () => {
     if (!state.originalImage || !crop || !crop.width || !crop.height || !isWasmReady) {
       console.log('Crop conditions not met:', {
@@ -254,6 +269,16 @@ function App() {
                   title="水平反転"
                 >
                   ↔️ 水平反転
+                </button>
+                <button 
+                  className="dropdown-item" 
+                  onClick={() => {
+                    handleFlipVertical();
+                    setIsProcessMenuOpen(false);
+                  }}
+                  title="垂直反転"
+                >
+                  ↕️ 垂直反転
                 </button>
                 <button 
                   className="dropdown-item" 

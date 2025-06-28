@@ -104,3 +104,13 @@ pub fn flip_horizontal(image_data: &[u8]) -> Vec<u8> {
     log("Horizontal flip successful");
     to_bytes(&processed)
 }
+
+#[wasm_bindgen]
+pub fn flip_vertical(image_data: &[u8]) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Flip vertical function called");
+    
+    let processed = img.flipv();
+    log("Vertical flip successful");
+    to_bytes(&processed)
+}
