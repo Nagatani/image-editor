@@ -109,6 +109,21 @@ function App() {
     dispatch({type: 'SET_IMAGE', payload: {data: rotated, url}});
   };
 
+  const handleFlipHorizontal = () => {
+    if (!state.originalImage || !isWasmReady) return;
+    dispatch({ type: 'START_LOADING' });
+    
+    try {
+      const flipped = wasm.flip_horizontal(state.originalImage.data);
+      console.log('Horizontal flip result length:', flipped.length);
+      const url = URL.createObjectURL(new Blob([flipped]));
+      dispatch({type: 'SET_IMAGE', payload: {data: flipped, url}});
+    } catch (error) {
+      console.error('Horizontal flip failed:', error);
+      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
+    }
+  };
+
   const handleCrop = () => {
     if (!state.originalImage || !crop || !crop.width || !crop.height || !isWasmReady) {
       console.log('Crop conditions not met:', {
@@ -198,6 +213,14 @@ function App() {
             disabled={!state.originalImage}
           >
             🔄 回転
+          </button>
+          <button 
+            className="header-button" 
+            onClick={handleFlipHorizontal} 
+            title="水平反転"
+            disabled={!state.originalImage}
+          >
+            ↔️ 水平反転
           </button>
           <button 
             className="header-button" 
