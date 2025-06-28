@@ -254,3 +254,70 @@ pub fn gaussian_blur(image_data: &[u8], sigma: f32) -> Vec<u8> {
     log("Gaussian blur successful");
     to_bytes(&processed)
 }
+
+#[wasm_bindgen]
+pub fn sharpen(image_data: &[u8], amount: f32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Sharpen function called");
+    
+    if amount <= 0.0 {
+        log("Amount must be greater than 0, returning original image");
+        return image_data.to_vec();
+    }
+    
+    // Convert to RGB8 for pixel manipulation
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    
+    // Create a sharpening kernel (unsharp mask approach)
+    // We'll use a simple 3x3 kernel for sharpening
+    let kernel = [
+        0.0, -amount, 0.0,
+        -amount, 1.0 + 4.0 * amount, -amount,
+        0.0, -amount, 0.0
+    ];
+    
+    let mut output = image::ImageBuffer::new(width, height);
+    
+    for y in 1..height-1 {
+        for x in 1..width-1 {
+            let mut r_sum = 0.0;
+            let mut g_sum = 0.0;
+            let mut b_sum = 0.0;
+            
+            // Apply kernel
+            for ky in 0..3 {
+                for kx in 0..3 {
+                    let px = (x as i32 + kx as i32 - 1) as u32;
+                    let py = (y as i32 + ky as i32 - 1) as u32;
+                    let pixel = rgb_img.get_pixel(px, py);
+                    let weight = kernel[ky * 3 + kx];
+                    
+                    r_sum += pixel[0] as f32 * weight;
+                    g_sum += pixel[1] as f32 * weight;
+                    b_sum += pixel[2] as f32 * weight;
+                }
+            }
+            
+            // Clamp values to 0-255 range
+            let r = r_sum.clamp(0.0, 255.0) as u8;
+            let g = g_sum.clamp(0.0, 255.0) as u8;
+            let b = b_sum.clamp(0.0, 255.0) as u8;
+            
+            output.put_pixel(x, y, image::Rgb([r, g, b]));
+        }
+    }
+    
+    // Handle edges by copying original pixels
+    for y in 0..height {
+        for x in 0..width {
+            if x == 0 || x == width-1 || y == 0 || y == height-1 {
+                output.put_pixel(x, y, *rgb_img.get_pixel(x, y));
+            }
+        }
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(output);
+    log("Sharpen successful");
+    to_bytes(&processed)
+}
