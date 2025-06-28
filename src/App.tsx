@@ -53,6 +53,7 @@ function App() {
   const [crop, setCrop] = useState<Crop>();
   const [isWasmReady, setWasmReady] = useState(false);
   const [isProcessMenuOpen, setIsProcessMenuOpen] = useState(false);
+  const [rotationAngle, setRotationAngle] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -151,6 +152,22 @@ function App() {
       dispatch({type: 'SET_IMAGE', payload: {data: flipped, url}});
     } catch (error) {
       console.error('Vertical flip failed:', error);
+      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
+    }
+  };
+
+  const handleRotateArbitrary = () => {
+    if (!state.originalImage || !isWasmReady) return;
+    dispatch({ type: 'START_LOADING' });
+    
+    try {
+      const rotated = wasm.rotate_arbitrary(state.originalImage.data, rotationAngle);
+      console.log('Arbitrary rotation result length:', rotated.length);
+      const url = URL.createObjectURL(new Blob([rotated]));
+      dispatch({type: 'SET_IMAGE', payload: {data: rotated, url}});
+      setRotationAngle(0); // Reset angle after rotation
+    } catch (error) {
+      console.error('Arbitrary rotation failed:', error);
       dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
     }
   };
@@ -346,6 +363,45 @@ function App() {
 
         {/* Right Panel - Adjustments */}
         <div className="right-panel">
+          <div className="panel-group">
+            <div className="panel-header">
+              <h3>回転</h3>
+            </div>
+            <div className="panel-content">
+              <div className="adjustment-item">
+                <label className="adjustment-label">角度 (degrees)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={-180} 
+                    max={180} 
+                    value={rotationAngle} 
+                    onChange={(e) => setRotationAngle(Number(e.target.value))}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={rotationAngle} 
+                    onChange={(e) => setRotationAngle(Number(e.target.value))}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={-180}
+                    max={180}
+                  />
+                </div>
+              </div>
+              <button 
+                className="apply-rotation-button"
+                onClick={handleRotateArbitrary}
+                disabled={!state.originalImage || rotationAngle === 0}
+                title="回転を適用"
+              >
+                🔄 回転を適用
+              </button>
+            </div>
+          </div>
+
           <div className="panel-group">
             <div className="panel-header">
               <h3>画像調整</h3>

@@ -1,5 +1,5 @@
 use wasm_bindgen::prelude::*;
-use image::{DynamicImage, ImageFormat};
+use image::{DynamicImage, ImageFormat, GenericImageView};
 use std::io::Cursor;
 
 #[wasm_bindgen]
@@ -112,5 +112,77 @@ pub fn flip_vertical(image_data: &[u8]) -> Vec<u8> {
     
     let processed = img.flipv();
     log("Vertical flip successful");
+    to_bytes(&processed)
+}
+
+#[wasm_bindgen]
+pub fn rotate_arbitrary(image_data: &[u8], angle: f32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Arbitrary rotation function called");
+    
+    // Convert angle to radians
+    let angle_rad = angle * std::f32::consts::PI / 180.0;
+    
+    // For arbitrary rotation, we'll use a combination of existing rotations
+    // and handle common angles efficiently
+    let processed = if (angle % 360.0).abs() < 0.1 {
+        // 0 degrees - no rotation
+        img
+    } else if ((angle % 360.0) - 90.0).abs() < 0.1 {
+        // 90 degrees
+        img.rotate90()
+    } else if ((angle % 360.0) - 180.0).abs() < 0.1 {
+        // 180 degrees  
+        img.rotate180()
+    } else if ((angle % 360.0) - 270.0).abs() < 0.1 {
+        // 270 degrees
+        img.rotate270()
+    } else {
+        // For arbitrary angles, we need to implement manual rotation
+        // This is a simplified version - in a real implementation, 
+        // you would use proper interpolation and handle transparency
+        use image::{ImageBuffer, Rgb};
+        
+        let (width, height) = img.dimensions();
+        let center_x = width as f32 / 2.0;
+        let center_y = height as f32 / 2.0;
+        
+        // Calculate new image dimensions after rotation
+        let cos_a = angle_rad.cos().abs();
+        let sin_a = angle_rad.sin().abs();
+        let new_width = ((width as f32) * cos_a + (height as f32) * sin_a).ceil() as u32;
+        let new_height = ((height as f32) * cos_a + (width as f32) * sin_a).ceil() as u32;
+        
+        let mut rotated = ImageBuffer::new(new_width, new_height);
+        let new_center_x = new_width as f32 / 2.0;
+        let new_center_y = new_height as f32 / 2.0;
+        
+        for (x, y, pixel) in rotated.enumerate_pixels_mut() {
+            // Translate to origin
+            let translated_x = x as f32 - new_center_x;
+            let translated_y = y as f32 - new_center_y;
+            
+            // Rotate coordinates (inverse rotation)
+            let rotated_x = translated_x * (-angle_rad).cos() - translated_y * (-angle_rad).sin();
+            let rotated_y = translated_x * (-angle_rad).sin() + translated_y * (-angle_rad).cos();
+            
+            // Translate back and map to original image
+            let orig_x = (rotated_x + center_x).round() as i32;
+            let orig_y = (rotated_y + center_y).round() as i32;
+            
+            // Check bounds and sample pixel
+            if orig_x >= 0 && orig_x < width as i32 && orig_y >= 0 && orig_y < height as i32 {
+                let source_pixel = img.get_pixel(orig_x as u32, orig_y as u32);
+                *pixel = Rgb([source_pixel[0], source_pixel[1], source_pixel[2]]);
+            } else {
+                // Background color (white)
+                *pixel = Rgb([255, 255, 255]);
+            }
+        }
+        
+        image::DynamicImage::ImageRgb8(rotated)
+    };
+    
+    log("Arbitrary rotation successful");
     to_bytes(&processed)
 }

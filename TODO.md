@@ -13,11 +13,11 @@ This document tracks the implementation progress of new features for the Rust/WA
   - [x] Add `flip_vertical()` function in Rust
   - [x] Add UI button in React
   - [x] Test implementation
-- [ ] **Arbitrary Angle Rotation** - Rotate by any angle (1-degree precision)
-  - [ ] Add `rotate_arbitrary(angle: f32)` function in Rust
-  - [ ] Add angle input slider in React UI
-  - [ ] Handle edge cases (image cropping after rotation)
-  - [ ] Test implementation
+- [x] **Arbitrary Angle Rotation** - Rotate by any angle (1-degree precision)
+  - [x] Add `rotate_arbitrary(angle: f32)` function in Rust
+  - [x] Add angle input slider in React UI
+  - [x] Handle edge cases (image cropping after rotation)
+  - [x] Test implementation
 - [ ] **Image Resize** - Scale image with width/height specification
   - [ ] Add `resize(width: u32, height: u32)` function in Rust
   - [ ] Add resize controls in React UI
@@ -198,8 +198,8 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Status Tracking
 
 - **Total Features**: 27 major features
-- **Completed**: 2
+- **Completed**: 3
 - **In Progress**: 0
-- **Remaining**: 25
+- **Remaining**: 24
 
 Last Updated: [Current Date]
