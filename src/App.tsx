@@ -52,7 +52,9 @@ function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [crop, setCrop] = useState<Crop>();
   const [isWasmReady, setWasmReady] = useState(false);
+  const [isProcessMenuOpen, setIsProcessMenuOpen] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     init().then(() => {
@@ -99,6 +101,20 @@ function App() {
       applyChanges();
     }
   }, [state.params, applyChanges]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsProcessMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
 
   const handleRotate = (angle: 90 | 180 | 270) => {
@@ -206,38 +222,64 @@ function App() {
           <label htmlFor="file-input" className="header-button" title="画像を開く">
             📁 ファイルを開く
           </label>
-          <button 
-            className="header-button" 
-            onClick={() => handleRotate(90)} 
-            title="90°回転"
-            disabled={!state.originalImage}
-          >
-            🔄 回転
-          </button>
-          <button 
-            className="header-button" 
-            onClick={handleFlipHorizontal} 
-            title="水平反転"
-            disabled={!state.originalImage}
-          >
-            ↔️ 水平反転
-          </button>
-          <button 
-            className="header-button" 
-            onClick={handleCrop} 
-            disabled={!crop?.width}
-            title="トリミング実行"
-          >
-            ✂️ トリミング
-          </button>
-          <button 
-            className="header-button" 
-            onClick={() => dispatch({type: 'RESET_PARAMS'})}
-            title="調整をリセット"
-            disabled={!state.originalImage}
-          >
-            🔄 リセット
-          </button>
+          
+          {/* Image Processing Menu */}
+          <div className="dropdown-menu" ref={menuRef}>
+            <button 
+              className="header-button dropdown-trigger" 
+              onClick={() => setIsProcessMenuOpen(!isProcessMenuOpen)}
+              title="画像処理メニュー"
+              disabled={!state.originalImage}
+            >
+              🎨 画像処理 ▼
+            </button>
+            {isProcessMenuOpen && (
+              <div className="dropdown-content">
+                <button 
+                  className="dropdown-item" 
+                  onClick={() => {
+                    handleRotate(90);
+                    setIsProcessMenuOpen(false);
+                  }}
+                  title="90°回転"
+                >
+                  🔄 回転
+                </button>
+                <button 
+                  className="dropdown-item" 
+                  onClick={() => {
+                    handleFlipHorizontal();
+                    setIsProcessMenuOpen(false);
+                  }}
+                  title="水平反転"
+                >
+                  ↔️ 水平反転
+                </button>
+                <button 
+                  className="dropdown-item" 
+                  onClick={() => {
+                    handleCrop();
+                    setIsProcessMenuOpen(false);
+                  }}
+                  disabled={!crop?.width}
+                  title="トリミング実行"
+                >
+                  ✂️ トリミング
+                </button>
+                <div className="dropdown-divider"></div>
+                <button 
+                  className="dropdown-item reset-item" 
+                  onClick={() => {
+                    dispatch({type: 'RESET_PARAMS'});
+                    setIsProcessMenuOpen(false);
+                  }}
+                  title="調整をリセット"
+                >
+                  🔄 リセット
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
