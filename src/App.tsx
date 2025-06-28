@@ -5,6 +5,23 @@ import ReactCrop, { type Crop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
 // 状態管理のためのReducer
+type HistoryState = {
+  originalImage: { data: Uint8Array, url: string } | null;
+  processedImageUrl: string | null;
+  params: {
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    temperature: number;
+  };
+  blurParams: {
+    sigma: number;
+  };
+  sharpenParams: {
+    amount: number;
+  };
+};
+
 type State = {
   originalImage: { data: Uint8Array, url: string } | null;
   processedImageUrl: string | null;
@@ -26,6 +43,8 @@ type State = {
   sharpenParams: {
     amount: number;
   };
+  history: HistoryState[];
+  historyIndex: number;
 };
 
 type Action =
@@ -36,7 +55,10 @@ type Action =
   | { type: 'SET_SHARPEN_PARAM'; payload: { key: keyof State['sharpenParams']; value: number } }
   | { type: 'START_LOADING' }
   | { type: 'SET_PROCESSED_IMAGE'; payload: string }
-  | { type: 'RESET_PARAMS' };
+  | { type: 'RESET_PARAMS' }
+  | { type: 'UNDO' }
+  | { type: 'REDO' }
+  | { type: 'SAVE_TO_HISTORY' };
 
 const initialState: State = {
   originalImage: null,
@@ -46,13 +68,38 @@ const initialState: State = {
   resizeParams: { width: 800, height: 600, aspectLocked: true },
   blurParams: { sigma: 0 },
   sharpenParams: { amount: 0 },
+  history: [],
+  historyIndex: -1,
 };
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'SET_IMAGE': {
-      const newState = { ...initialState, isLoading: false, originalImage: action.payload, processedImageUrl: action.payload.url };
-      if (action.payload.data) {
+      console.log('SET_IMAGE action:', {
+        hasOriginalImage: !!state.originalImage,
+        actionUrl: action.payload.url,
+        currentHistory: state.history.length,
+        currentIndex: state.historyIndex
+      });
+      
+      // Check if this is completely new image from file input (not a processed result)
+      const isCompletelyNewImage = !state.originalImage;
+      
+      const newState = { 
+        ...state,
+        isLoading: false, 
+        originalImage: action.payload, 
+        processedImageUrl: action.payload.url,
+        // Reset params only for completely new images
+        params: isCompletelyNewImage ? initialState.params : state.params,
+        blurParams: isCompletelyNewImage ? initialState.blurParams : state.blurParams,
+        sharpenParams: isCompletelyNewImage ? initialState.sharpenParams : state.sharpenParams,
+        // Reset history only for completely new images - DO NOT modify history for processed results
+        history: isCompletelyNewImage ? [] : state.history,
+        historyIndex: isCompletelyNewImage ? -1 : state.historyIndex
+      };
+      
+      if (action.payload.data && isCompletelyNewImage) {
         // Update resize params with actual image dimensions
         const img = new Image();
         img.onload = () => {
@@ -60,6 +107,13 @@ function reducer(state: State, action: Action): State {
         };
         img.src = action.payload.url;
       }
+      
+      console.log('SET_IMAGE result:', {
+        newHistory: newState.history.length,
+        newIndex: newState.historyIndex,
+        isNewImage: isCompletelyNewImage
+      });
+      
       return newState;
     }
     case 'SET_PARAM':
@@ -76,6 +130,75 @@ function reducer(state: State, action: Action): State {
       return { ...state, isLoading: false, processedImageUrl: action.payload };
     case 'RESET_PARAMS':
       return { ...state, params: initialState.params, blurParams: initialState.blurParams, sharpenParams: initialState.sharpenParams };
+    case 'SAVE_TO_HISTORY': {
+      const currentHistoryState: HistoryState = {
+        originalImage: state.originalImage,
+        processedImageUrl: state.processedImageUrl,
+        params: { ...state.params },
+        blurParams: { ...state.blurParams },
+        sharpenParams: { ...state.sharpenParams },
+      };
+      
+      console.log('SAVE_TO_HISTORY:', {
+        beforeSave: { historyLength: state.history.length, historyIndex: state.historyIndex },
+        saving: !!state.originalImage
+      });
+      
+      // Remove any future history if we're not at the end
+      const newHistory = state.history.slice(0, state.historyIndex + 1);
+      newHistory.push(currentHistoryState);
+      
+      // Limit history to 20 items to prevent memory issues
+      const limitedHistory = newHistory.slice(-20);
+      
+      console.log('SAVE_TO_HISTORY result:', {
+        afterSave: { historyLength: limitedHistory.length, historyIndex: limitedHistory.length - 1 }
+      });
+      
+      return {
+        ...state,
+        history: limitedHistory,
+        historyIndex: limitedHistory.length - 1,
+      };
+    }
+    case 'UNDO': {
+      console.log('UNDO reducer:', { historyIndex: state.historyIndex, historyLength: state.history.length });
+      if (state.historyIndex <= 0) {
+        console.log('Cannot undo: at beginning of history');
+        return state;
+      }
+      
+      const prevState = state.history[state.historyIndex - 1];
+      console.log('Undoing to state:', state.historyIndex - 1);
+      return {
+        ...state,
+        originalImage: prevState.originalImage,
+        processedImageUrl: prevState.processedImageUrl,
+        params: { ...prevState.params },
+        blurParams: { ...prevState.blurParams },
+        sharpenParams: { ...prevState.sharpenParams },
+        historyIndex: state.historyIndex - 1,
+      };
+    }
+    case 'REDO': {
+      console.log('REDO reducer:', { historyIndex: state.historyIndex, historyLength: state.history.length });
+      if (state.historyIndex >= state.history.length - 1) {
+        console.log('Cannot redo: at end of history');
+        return state;
+      }
+      
+      const nextState = state.history[state.historyIndex + 1];
+      console.log('Redoing to state:', state.historyIndex + 1);
+      return {
+        ...state,
+        originalImage: nextState.originalImage,
+        processedImageUrl: nextState.processedImageUrl,
+        params: { ...nextState.params },
+        blurParams: { ...nextState.blurParams },
+        sharpenParams: { ...nextState.sharpenParams },
+        historyIndex: state.historyIndex + 1,
+      };
+    }
     default:
       return state;
   }
@@ -104,7 +227,7 @@ function App() {
     });
     
     // Check browser support for WebP and AVIF
-    const checkFormatSupport = () => {
+    const checkFormatSupport = async () => {
       const canvas = document.createElement('canvas');
       canvas.width = 1;
       canvas.height = 1;
@@ -112,18 +235,47 @@ function App() {
       // Check WebP support
       const webpSupport = canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
       
-      // Check AVIF support (newer feature, may not be supported in all browsers)
+      // Check AVIF support using a more reliable method
       let avifSupport = false;
       try {
-        avifSupport = canvas.toDataURL('image/avif').indexOf('data:image/avif') === 0;
+        // Try creating a blob first
+        const dataUrl = canvas.toDataURL('image/avif');
+        avifSupport = dataUrl.indexOf('data:image/avif') === 0;
+        
+        // Alternative check: use feature detection
+        if (!avifSupport) {
+          // Check if the browser supports AVIF by testing toBlob
+          const hasToBlob = new Promise((resolve) => {
+            canvas.toBlob((blob) => {
+              resolve(!!blob && blob.type === 'image/avif');
+            }, 'image/avif', 0.8);
+          });
+          avifSupport = await hasToBlob as boolean;
+        }
       } catch (e) {
+        console.log('AVIF not supported:', e);
         avifSupport = false;
+      }
+      
+      // Fallback: Enable AVIF for modern browsers (Chrome 85+, Firefox 93+)
+      if (!avifSupport) {
+        const userAgent = navigator.userAgent;
+        const chromeMatch = userAgent.match(/Chrome\/(\d+)/);
+        const firefoxMatch = userAgent.match(/Firefox\/(\d+)/);
+        
+        if (chromeMatch && parseInt(chromeMatch[1]) >= 85) {
+          avifSupport = true;
+        } else if (firefoxMatch && parseInt(firefoxMatch[1]) >= 93) {
+          avifSupport = true;
+        }
       }
       
       setSupportedFormats({
         webp: webpSupport,
         avif: avifSupport
       });
+      
+      console.log('Format support:', { webp: webpSupport, avif: avifSupport });
     };
     
     checkFormatSupport();
@@ -138,6 +290,10 @@ function App() {
       const data = new Uint8Array(event.target?.result as ArrayBuffer);
       const url = URL.createObjectURL(new Blob([data]));
       dispatch({ type: 'SET_IMAGE', payload: { data, url } });
+      // Save initial state to history after image load
+      setTimeout(() => {
+        dispatch({ type: 'SAVE_TO_HISTORY' });
+      }, 100);
     };
     reader.readAsArrayBuffer(file);
   };
@@ -195,14 +351,20 @@ function App() {
 
   const handleRotate = (angle: 90 | 180 | 270) => {
     if (!state.originalImage || !isWasmReady) return;
+    saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
     const rotated = wasm.rotate(state.originalImage.data, angle);
     const url = URL.createObjectURL(new Blob([rotated]));
     dispatch({type: 'SET_IMAGE', payload: {data: rotated, url}});
+    // Save state after operation for redo functionality
+    setTimeout(() => {
+      dispatch({ type: 'SAVE_TO_HISTORY' });
+    }, 100);
   };
 
   const handleFlipHorizontal = () => {
     if (!state.originalImage || !isWasmReady) return;
+    saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
     
     try {
@@ -210,6 +372,11 @@ function App() {
       console.log('Horizontal flip result length:', flipped.length);
       const url = URL.createObjectURL(new Blob([flipped]));
       dispatch({type: 'SET_IMAGE', payload: {data: flipped, url}});
+      // Save state after operation for redo functionality
+      setTimeout(() => {
+        dispatch({ type: 'SAVE_TO_HISTORY' });
+      }, 100);
+      console.log('History after flip:', state.history.length, 'Index:', state.historyIndex);
     } catch (error) {
       console.error('Horizontal flip failed:', error);
       dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
@@ -218,6 +385,7 @@ function App() {
 
   const handleFlipVertical = () => {
     if (!state.originalImage || !isWasmReady) return;
+    saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
     
     try {
@@ -225,6 +393,10 @@ function App() {
       console.log('Vertical flip result length:', flipped.length);
       const url = URL.createObjectURL(new Blob([flipped]));
       dispatch({type: 'SET_IMAGE', payload: {data: flipped, url}});
+      // Save state after operation for redo functionality
+      setTimeout(() => {
+        dispatch({ type: 'SAVE_TO_HISTORY' });
+      }, 100);
     } catch (error) {
       console.error('Vertical flip failed:', error);
       dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
@@ -233,6 +405,7 @@ function App() {
 
   const handleRotateArbitrary = () => {
     if (!state.originalImage || !isWasmReady) return;
+    saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
     
     try {
@@ -240,6 +413,10 @@ function App() {
       console.log('Arbitrary rotation result length:', rotated.length);
       const url = URL.createObjectURL(new Blob([rotated]));
       dispatch({type: 'SET_IMAGE', payload: {data: rotated, url}});
+      // Save state after operation for redo functionality
+      setTimeout(() => {
+        dispatch({ type: 'SAVE_TO_HISTORY' });
+      }, 100);
       setRotationAngle(0); // Reset angle after rotation
     } catch (error) {
       console.error('Arbitrary rotation failed:', error);
@@ -249,6 +426,7 @@ function App() {
 
   const handleResize = () => {
     if (!state.originalImage || !isWasmReady) return;
+    saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
     
     try {
@@ -256,6 +434,10 @@ function App() {
       console.log('Resize result length:', resized.length);
       const url = URL.createObjectURL(new Blob([resized]));
       dispatch({type: 'SET_IMAGE', payload: {data: resized, url}});
+      // Save state after operation for redo functionality
+      setTimeout(() => {
+        dispatch({ type: 'SAVE_TO_HISTORY' });
+      }, 100);
     } catch (error) {
       console.error('Resize failed:', error);
       dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
@@ -283,6 +465,7 @@ function App() {
 
   const handleGrayscale = () => {
     if (!state.originalImage || !isWasmReady) return;
+    saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
     
     try {
@@ -290,6 +473,10 @@ function App() {
       console.log('Grayscale result length:', grayscaled.length);
       const url = URL.createObjectURL(new Blob([grayscaled]));
       dispatch({type: 'SET_IMAGE', payload: {data: grayscaled, url}});
+      // Save state after operation for redo functionality
+      setTimeout(() => {
+        dispatch({ type: 'SAVE_TO_HISTORY' });
+      }, 100);
     } catch (error) {
       console.error('Grayscale failed:', error);
       dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
@@ -298,6 +485,7 @@ function App() {
 
   const handleSepia = () => {
     if (!state.originalImage || !isWasmReady) return;
+    saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
     
     try {
@@ -305,6 +493,10 @@ function App() {
       console.log('Sepia result length:', sepiaed.length);
       const url = URL.createObjectURL(new Blob([sepiaed]));
       dispatch({type: 'SET_IMAGE', payload: {data: sepiaed, url}});
+      // Save state after operation for redo functionality
+      setTimeout(() => {
+        dispatch({ type: 'SAVE_TO_HISTORY' });
+      }, 100);
     } catch (error) {
       console.error('Sepia failed:', error);
       dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
@@ -382,6 +574,32 @@ function App() {
     setShowSaveDialog(true);
   };
 
+  const handleUndo = () => {
+    console.log('Undo clicked. Current state:', {
+      history: state.history.length,
+      index: state.historyIndex
+    });
+    dispatch({ type: 'UNDO' });
+  };
+
+  const handleRedo = () => {
+    console.log('Redo clicked. Current state:', {
+      history: state.history.length,
+      index: state.historyIndex,
+      canRedo: state.historyIndex < state.history.length - 1
+    });
+    dispatch({ type: 'REDO' });
+  };
+
+  const saveToHistory = () => {
+    console.log('Saving to history. Current state:', {
+      history: state.history.length,
+      index: state.historyIndex,
+      hasImage: !!state.originalImage
+    });
+    dispatch({ type: 'SAVE_TO_HISTORY' });
+  };
+
   const handleCrop = () => {
     if (!state.originalImage || !crop || !crop.width || !crop.height || !isWasmReady) {
       console.log('Crop conditions not met:', {
@@ -393,6 +611,7 @@ function App() {
       });
       return;
     }
+    saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
 
     const img = imgRef.current;
@@ -437,6 +656,10 @@ function App() {
       console.log('Crop result length:', cropped.length);
       const url = URL.createObjectURL(new Blob([cropped]));
       dispatch({type: 'SET_IMAGE', payload: {data: cropped, url}});
+      // Save state after operation for redo functionality
+      setTimeout(() => {
+        dispatch({ type: 'SAVE_TO_HISTORY' });
+      }, 100);
       setCrop(undefined); // トリミング選択をリセット
     } catch (error) {
       console.error('Crop failed:', error);
@@ -465,15 +688,33 @@ function App() {
             📁 ファイルを開く
           </label>
           
-          {/* Save button */}
+          {/* Save and History buttons */}
           {state.processedImageUrl && (
-            <button 
-              className="header-button" 
-              onClick={handleShowSaveDialog}
-              title="画像を保存"
-            >
-              💾 保存
-            </button>
+            <>
+              <button 
+                className="header-button" 
+                onClick={handleUndo}
+                disabled={state.history.length === 0 || state.historyIndex <= 0}
+                title={`元に戻す (履歴: ${state.history.length}, 位置: ${state.historyIndex})`}
+              >
+                ↶ 元に戻す
+              </button>
+              <button 
+                className="header-button" 
+                onClick={handleRedo}
+                disabled={state.history.length === 0 || state.historyIndex >= state.history.length - 1}
+                title={`やり直し (履歴: ${state.history.length}, 位置: ${state.historyIndex})`}
+              >
+                ↷ やり直し
+              </button>
+              <button 
+                className="header-button" 
+                onClick={handleShowSaveDialog}
+                title="画像を保存"
+              >
+                💾 保存
+              </button>
+            </>
           )}
           
           {/* Image Processing Menu */}

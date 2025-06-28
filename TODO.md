@@ -48,12 +48,12 @@ This document tracks the implementation progress of new features for the Rust/WA
   - [x] Support PNG format
   - [x] Support JPEG format with quality setting
   - [x] Test download functionality
-- [ ] **Undo/Redo System** - Edit history management
-  - [ ] Design state history system
-  - [ ] Implement undo functionality
-  - [ ] Implement redo functionality
-  - [ ] Add UI buttons
-  - [ ] Test history management
+- [x] **Undo/Redo System** - Edit history management
+  - [x] Design state history system
+  - [x] Implement undo functionality
+  - [x] Implement redo functionality
+  - [x] Add UI buttons
+  - [x] Test history management
 
 ## Phase 2: Intermediate Features
 
@@ -198,8 +198,8 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Status Tracking
 
 - **Total Features**: 27 major features
-- **Completed**: 9
+- **Completed**: 10
 - **In Progress**: 0
-- **Remaining**: 18
+- **Remaining**: 17
 
 Last Updated: [Current Date]
