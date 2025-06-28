@@ -25,14 +25,14 @@ This document tracks the implementation progress of new features for the Rust/WA
   - [x] Test implementation
 
 ### 1.2 Basic Filters
-- [ ] **Grayscale Conversion** - Convert to black and white
-  - [ ] Add `to_grayscale()` function in Rust
-  - [ ] Add toggle button in React UI
-  - [ ] Test implementation
-- [ ] **Sepia Effect** - Vintage photo effect
-  - [ ] Add `apply_sepia()` function in Rust
-  - [ ] Add toggle button in React UI
-  - [ ] Test implementation
+- [x] **Grayscale Conversion** - Convert to black and white
+  - [x] Add `to_grayscale()` function in Rust
+  - [x] Add toggle button in React UI
+  - [x] Test implementation
+- [x] **Sepia Effect** - Vintage photo effect
+  - [x] Add `apply_sepia()` function in Rust
+  - [x] Add toggle button in React UI
+  - [x] Test implementation
 - [ ] **Gaussian Blur** - Blur effect with intensity control
   - [ ] Add `gaussian_blur(sigma: f32)` function in Rust
   - [ ] Add blur intensity slider in React UI
@@ -198,8 +198,8 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Status Tracking
 
 - **Total Features**: 27 major features
-- **Completed**: 4
+- **Completed**: 6
 - **In Progress**: 0
-- **Remaining**: 23
+- **Remaining**: 21
 
 Last Updated: [Current Date]

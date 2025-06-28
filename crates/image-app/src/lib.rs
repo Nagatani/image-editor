@@ -201,3 +201,41 @@ pub fn resize(image_data: &[u8], width: u32, height: u32) -> Vec<u8> {
     log("Resize successful");
     to_bytes(&processed)
 }
+
+#[wasm_bindgen]
+pub fn to_grayscale(image_data: &[u8]) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Grayscale conversion function called");
+    
+    let processed = img.grayscale();
+    log("Grayscale conversion successful");
+    to_bytes(&processed)
+}
+
+#[wasm_bindgen]
+pub fn apply_sepia(image_data: &[u8]) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Sepia effect function called");
+    
+    // Convert to RGB8 format first to ensure we can modify pixels
+    let mut rgb_img = img.to_rgb8();
+    
+    for pixel in rgb_img.pixels_mut() {
+        let r = pixel[0] as f32;
+        let g = pixel[1] as f32;
+        let b = pixel[2] as f32;
+        
+        // Sepia transformation matrix
+        let sepia_r = (r * 0.393) + (g * 0.769) + (b * 0.189);
+        let sepia_g = (r * 0.349) + (g * 0.686) + (b * 0.168);
+        let sepia_b = (r * 0.272) + (g * 0.534) + (b * 0.131);
+        
+        pixel[0] = sepia_r.min(255.0) as u8;
+        pixel[1] = sepia_g.min(255.0) as u8;
+        pixel[2] = sepia_b.min(255.0) as u8;
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(rgb_img);
+    log("Sepia effect successful");
+    to_bytes(&processed)
+}

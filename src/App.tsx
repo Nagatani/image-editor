@@ -225,6 +225,36 @@ function App() {
     }
   };
 
+  const handleGrayscale = () => {
+    if (!state.originalImage || !isWasmReady) return;
+    dispatch({ type: 'START_LOADING' });
+    
+    try {
+      const grayscaled = wasm.to_grayscale(state.originalImage.data);
+      console.log('Grayscale result length:', grayscaled.length);
+      const url = URL.createObjectURL(new Blob([grayscaled]));
+      dispatch({type: 'SET_IMAGE', payload: {data: grayscaled, url}});
+    } catch (error) {
+      console.error('Grayscale failed:', error);
+      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
+    }
+  };
+
+  const handleSepia = () => {
+    if (!state.originalImage || !isWasmReady) return;
+    dispatch({ type: 'START_LOADING' });
+    
+    try {
+      const sepiaed = wasm.apply_sepia(state.originalImage.data);
+      console.log('Sepia result length:', sepiaed.length);
+      const url = URL.createObjectURL(new Blob([sepiaed]));
+      dispatch({type: 'SET_IMAGE', payload: {data: sepiaed, url}});
+    } catch (error) {
+      console.error('Sepia failed:', error);
+      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
+    }
+  };
+
   const handleCrop = () => {
     if (!state.originalImage || !crop || !crop.width || !crop.height || !isWasmReady) {
       console.log('Crop conditions not met:', {
@@ -360,6 +390,27 @@ function App() {
                   title="トリミング実行"
                 >
                   ✂️ トリミング
+                </button>
+                <div className="dropdown-divider"></div>
+                <button 
+                  className="dropdown-item" 
+                  onClick={() => {
+                    handleGrayscale();
+                    setIsProcessMenuOpen(false);
+                  }}
+                  title="グレースケール変換"
+                >
+                  ⬛ グレースケール
+                </button>
+                <button 
+                  className="dropdown-item" 
+                  onClick={() => {
+                    handleSepia();
+                    setIsProcessMenuOpen(false);
+                  }}
+                  title="セピア効果"
+                >
+                  🟤 セピア
                 </button>
                 <div className="dropdown-divider"></div>
                 <button 
