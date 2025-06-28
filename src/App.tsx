@@ -20,12 +20,16 @@ type State = {
     height: number;
     aspectLocked: boolean;
   };
+  blurParams: {
+    sigma: number;
+  };
 };
 
 type Action =
   | { type: 'SET_IMAGE'; payload: { data: Uint8Array; url: string } }
   | { type: 'SET_PARAM'; payload: { key: keyof State['params']; value: number } }
   | { type: 'SET_RESIZE_PARAM'; payload: { key: keyof State['resizeParams']; value: number | boolean } }
+  | { type: 'SET_BLUR_PARAM'; payload: { key: keyof State['blurParams']; value: number } }
   | { type: 'START_LOADING' }
   | { type: 'SET_PROCESSED_IMAGE'; payload: string }
   | { type: 'RESET_PARAMS' };
@@ -36,6 +40,7 @@ const initialState: State = {
   isLoading: true,
   params: { brightness: 0, contrast: 0, saturation: 0, temperature: 0 },
   resizeParams: { width: 800, height: 600, aspectLocked: true },
+  blurParams: { sigma: 0 },
 };
 
 function reducer(state: State, action: Action): State {
@@ -56,12 +61,14 @@ function reducer(state: State, action: Action): State {
       return { ...state, params: { ...state.params, [action.payload.key]: action.payload.value } };
     case 'SET_RESIZE_PARAM':
       return { ...state, resizeParams: { ...state.resizeParams, [action.payload.key]: action.payload.value } };
+    case 'SET_BLUR_PARAM':
+      return { ...state, blurParams: { ...state.blurParams, [action.payload.key]: action.payload.value } };
     case 'START_LOADING':
       return { ...state, isLoading: true };
     case 'SET_PROCESSED_IMAGE':
       return { ...state, isLoading: false, processedImageUrl: action.payload };
     case 'RESET_PARAMS':
-      return { ...state, params: initialState.params };
+      return { ...state, params: initialState.params, blurParams: initialState.blurParams };
     default:
       return state;
   }
@@ -110,17 +117,22 @@ function App() {
         imageData = wasm.adjust_contrast(imageData, state.params.contrast * 0.1); // スケール調整
         imageData = wasm.adjust_saturation(imageData, state.params.saturation * 0.1); // スケール調整
         imageData = wasm.adjust_white_balance(imageData, state.params.temperature);
+        
+        // Apply blur if sigma > 0
+        if (state.blurParams.sigma > 0) {
+          imageData = wasm.gaussian_blur(imageData, state.blurParams.sigma);
+        }
 
         const url = URL.createObjectURL(new Blob([imageData]));
         dispatch({ type: 'SET_PROCESSED_IMAGE', payload: url });
     }, 50);
-  }, [state.originalImage, state.params, isWasmReady]);
+  }, [state.originalImage, state.params, state.blurParams, isWasmReady]);
 
   useEffect(() => {
     if (state.originalImage) {
       applyChanges();
     }
-  }, [state.params, applyChanges]);
+  }, [state.params, state.blurParams, applyChanges]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -253,6 +265,10 @@ function App() {
       console.error('Sepia failed:', error);
       dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
     }
+  };
+
+  const handleBlurParamChange = (key: keyof State['blurParams'], value: string) => {
+    dispatch({ type: 'SET_BLUR_PARAM', payload: { key, value: Number(value) } });
   };
 
   const handleCrop = () => {
@@ -560,6 +576,39 @@ function App() {
               >
                 📏 リサイズを適用
               </button>
+            </div>
+          </div>
+
+          <div className="panel-group">
+            <div className="panel-header">
+              <h3>ブラー</h3>
+            </div>
+            <div className="panel-content">
+              <div className="adjustment-item">
+                <label className="adjustment-label">強度 (sigma)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={0} 
+                    max={10} 
+                    step={0.1}
+                    value={state.blurParams.sigma} 
+                    onChange={(e) => handleBlurParamChange('sigma', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.blurParams.sigma} 
+                    onChange={(e) => handleBlurParamChange('sigma', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={0}
+                    max={10}
+                    step={0.1}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 

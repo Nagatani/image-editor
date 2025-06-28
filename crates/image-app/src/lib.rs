@@ -239,3 +239,18 @@ pub fn apply_sepia(image_data: &[u8]) -> Vec<u8> {
     log("Sepia effect successful");
     to_bytes(&processed)
 }
+
+#[wasm_bindgen]
+pub fn gaussian_blur(image_data: &[u8], sigma: f32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Gaussian blur function called");
+    
+    if sigma <= 0.0 {
+        log("Sigma must be greater than 0, returning original image");
+        return image_data.to_vec();
+    }
+    
+    let processed = img.blur(sigma);
+    log("Gaussian blur successful");
+    to_bytes(&processed)
+}

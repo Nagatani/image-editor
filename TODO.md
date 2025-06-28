@@ -33,10 +33,10 @@ This document tracks the implementation progress of new features for the Rust/WA
   - [x] Add `apply_sepia()` function in Rust
   - [x] Add toggle button in React UI
   - [x] Test implementation
-- [ ] **Gaussian Blur** - Blur effect with intensity control
-  - [ ] Add `gaussian_blur(sigma: f32)` function in Rust
-  - [ ] Add blur intensity slider in React UI
-  - [ ] Test implementation
+- [x] **Gaussian Blur** - Blur effect with intensity control
+  - [x] Add `gaussian_blur(sigma: f32)` function in Rust
+  - [x] Add blur intensity slider in React UI
+  - [x] Test implementation
 - [ ] **Sharpen** - Image sharpening
   - [ ] Add `sharpen(amount: f32)` function in Rust
   - [ ] Add sharpen intensity slider in React UI
@@ -198,8 +198,8 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Status Tracking
 
 - **Total Features**: 27 major features
-- **Completed**: 6
+- **Completed**: 7
 - **In Progress**: 0
-- **Remaining**: 21
+- **Remaining**: 20
 
 Last Updated: [Current Date]
