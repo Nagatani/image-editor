@@ -87,6 +87,13 @@ function App() {
   const [isWasmReady, setWasmReady] = useState(false);
   const [isProcessMenuOpen, setIsProcessMenuOpen] = useState(false);
   const [rotationAngle, setRotationAngle] = useState(0);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveFileName, setSaveFileName] = useState('edited-image');
+  const [saveFormat, setSaveFormat] = useState<'png' | 'jpeg' | 'webp' | 'avif'>('png');
+  const [supportedFormats, setSupportedFormats] = useState({
+    webp: false,
+    avif: false
+  });
   const imgRef = useRef<HTMLImageElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +102,31 @@ function App() {
       setWasmReady(true);
       dispatch({ type: 'START_LOADING' });
     });
+    
+    // Check browser support for WebP and AVIF
+    const checkFormatSupport = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      
+      // Check WebP support
+      const webpSupport = canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+      
+      // Check AVIF support (newer feature, may not be supported in all browsers)
+      let avifSupport = false;
+      try {
+        avifSupport = canvas.toDataURL('image/avif').indexOf('data:image/avif') === 0;
+      } catch (e) {
+        avifSupport = false;
+      }
+      
+      setSupportedFormats({
+        webp: webpSupport,
+        avif: avifSupport
+      });
+    };
+    
+    checkFormatSupport();
   }, []);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -287,6 +319,69 @@ function App() {
     dispatch({ type: 'SET_SHARPEN_PARAM', payload: { key, value: Number(value) } });
   };
 
+  const handleSaveImage = () => {
+    if (!state.processedImageUrl || !saveFileName.trim()) return;
+    
+    // Create a canvas to convert the processed image
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      ctx?.drawImage(img, 0, 0);
+      
+      // Set quality based on format
+      let quality: number | undefined;
+      let mimeType: string;
+      
+      switch (saveFormat) {
+        case 'jpeg':
+          quality = 0.9;
+          mimeType = 'image/jpeg';
+          break;
+        case 'webp':
+          quality = 0.9;
+          mimeType = 'image/webp';
+          break;
+        case 'avif':
+          quality = 0.8; // AVIF typically needs lower quality for good compression
+          mimeType = 'image/avif';
+          break;
+        case 'png':
+        default:
+          quality = undefined;
+          mimeType = 'image/png';
+          break;
+      }
+      
+      // Convert to blob and download
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          alert(`${saveFormat.toUpperCase()}形式での保存に失敗しました。ブラウザがこの形式をサポートしていない可能性があります。`);
+          return;
+        }
+        
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${saveFileName}.${saveFormat}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setShowSaveDialog(false);
+      }, mimeType, quality);
+    };
+    
+    img.src = state.processedImageUrl;
+  };
+
+  const handleShowSaveDialog = () => {
+    setShowSaveDialog(true);
+  };
+
   const handleCrop = () => {
     if (!state.originalImage || !crop || !crop.width || !crop.height || !isWasmReady) {
       console.log('Crop conditions not met:', {
@@ -369,6 +464,17 @@ function App() {
           <label htmlFor="file-input" className="header-button" title="画像を開く">
             📁 ファイルを開く
           </label>
+          
+          {/* Save button */}
+          {state.processedImageUrl && (
+            <button 
+              className="header-button" 
+              onClick={handleShowSaveDialog}
+              title="画像を保存"
+            >
+              💾 保存
+            </button>
+          )}
           
           {/* Image Processing Menu */}
           <div className="dropdown-menu" ref={menuRef}>
@@ -707,6 +813,70 @@ function App() {
       </div>
 
       {state.isLoading && state.originalImage && <div className="processing-indicator">処理中...</div>}
+      
+      {/* Save Dialog */}
+      {showSaveDialog && (
+        <div className="modal-overlay" onClick={() => setShowSaveDialog(false)}>
+          <div className="save-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="save-dialog-header">
+              <h3>画像を保存</h3>
+              <button 
+                className="close-button"
+                onClick={() => setShowSaveDialog(false)}
+                title="閉じる"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="save-dialog-content">
+              <div className="save-input-group">
+                <label htmlFor="filename">ファイル名:</label>
+                <input 
+                  id="filename"
+                  type="text" 
+                  value={saveFileName}
+                  onChange={(e) => setSaveFileName(e.target.value)}
+                  className="save-filename-input"
+                  placeholder="ファイル名を入力"
+                />
+              </div>
+              <div className="save-input-group">
+                <label htmlFor="format">形式:</label>
+                <select 
+                  id="format"
+                  value={saveFormat}
+                  onChange={(e) => setSaveFormat(e.target.value as 'png' | 'jpeg' | 'webp' | 'avif')}
+                  className="save-format-select"
+                >
+                  <option value="png">PNG (無劣化)</option>
+                  <option value="jpeg">JPEG (高圧縮)</option>
+                  {supportedFormats.webp && (
+                    <option value="webp">WebP (高効率)</option>
+                  )}
+                  {supportedFormats.avif && (
+                    <option value="avif">AVIF (最新高効率)</option>
+                  )}
+                </select>
+              </div>
+            </div>
+            <div className="save-dialog-footer">
+              <button 
+                className="cancel-button"
+                onClick={() => setShowSaveDialog(false)}
+              >
+                キャンセル
+              </button>
+              <button 
+                className="save-button"
+                onClick={handleSaveImage}
+                disabled={!saveFileName.trim()}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
