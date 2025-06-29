@@ -9,6 +9,7 @@ interface AppHeaderProps {
   canRedo: boolean;
   hasImage: boolean;
   isProcessing: boolean;
+  fileName?: string;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -19,11 +20,14 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   canUndo,
   canRedo,
   hasImage,
-  isProcessing
+  isProcessing,
+  fileName
 }) => {
   return (
     <div className="app-header">
-      <div className="app-title">Professional Image Editor</div>
+      <div className="app-title">
+        {fileName ? fileName : 'PhotoFlow Studio'}
+      </div>
       <div className="header-controls">
         <input 
           type="file" 

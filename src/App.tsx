@@ -97,7 +97,7 @@ type HistoryState = {
 };
 
 type State = {
-  originalImage: { data: Uint8Array, url: string } | null;
+  originalImage: { data: Uint8Array, url: string, fileName?: string } | null;
   processedImageUrl: string | null;
   isLoading: boolean;
   params: {
@@ -147,7 +147,7 @@ type State = {
 };
 
 type Action =
-  | { type: 'SET_IMAGE'; payload: { data: Uint8Array; url: string } }
+  | { type: 'SET_IMAGE'; payload: { data: Uint8Array; url: string; fileName?: string } }
   | { type: 'SET_PARAM'; payload: { key: keyof State['params']; value: number } }
   | { type: 'SET_RESIZE_PARAM'; payload: { key: keyof State['resizeParams']; value: number | boolean } }
   | { type: 'SET_BLUR_PARAM'; payload: { key: keyof State['blurParams']; value: number } }
@@ -193,9 +193,17 @@ function reducer(state: State, action: Action): State {
       console.log('SET_IMAGE action:', {
         hasOriginalImage: !!state.originalImage,
         actionUrl: action.payload.url,
+        fileName: action.payload.fileName,
         currentHistory: state.history.length,
         currentIndex: state.historyIndex
       });
+      
+      // Update document title when image is loaded
+      if (action.payload.fileName) {
+        document.title = `${action.payload.fileName} - PhotoFlow Studio (編集中)`;
+      } else {
+        document.title = 'PhotoFlow Studio';
+      }
       
       // Check if this is completely new image from file input (not a processed result)
       const isCompletelyNewImage = !state.originalImage;
@@ -527,7 +535,7 @@ function App() {
         }
         
         const url = URL.createObjectURL(new Blob([data]));
-        dispatch({ type: 'SET_IMAGE', payload: { data, url } });
+        dispatch({ type: 'SET_IMAGE', payload: { data, url, fileName: file.name } });
         
         // Save initial state to history after image load
         setTimeout(() => {
@@ -1416,7 +1424,9 @@ function App() {
     <div className="photoshop-app">
       {/* Header */}
       <div className="app-header">
-        <div className="app-title">Rust/WASM Image Editor</div>
+        <div className="app-title">
+          {state.originalImage?.fileName ? state.originalImage.fileName : 'PhotoFlow Studio'}
+        </div>
         <div className="header-controls">
           <input 
             type="file" 
