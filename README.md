@@ -1,6 +1,6 @@
-# Professional Image Editor
+# PhotoFlow Studio
 
-A comprehensive web-based image editor built with Rust and WebAssembly, featuring professional-grade image processing capabilities and an intuitive dark theme UI inspired by desktop editing software.
+A professional web-based image editor built with Rust and WebAssembly, featuring high-performance image processing capabilities and a modern flat design UI inspired by desktop editing software.
 
 ## ✨ Features
 
@@ -13,18 +13,25 @@ A comprehensive web-based image editor built with Rust and WebAssembly, featurin
 
 ### 🚀 Performance & Quality
 - **Rust/WASM Engine**: Near-native performance for complex image operations
+- **Web Worker Processing**: Background processing prevents UI blocking
 - **Real-time Processing**: Instant preview with debounced updates
 - **Memory Efficient**: Optimized memory management and cleanup
 - **Error Handling**: Comprehensive error recovery and user feedback
 
 ### 💡 Professional UI/UX
-- **Modern Interface**: Clean, professional dark theme
+- **Modern Flat Design**: Clean, professional interface with flat design principles
 - **Component Architecture**: Modular, reusable React components
 - **Responsive Design**: Works seamlessly across devices
 - **Advanced Controls**: Dual slider/numeric inputs for precision
 - **Visual Feedback**: Loading states, progress indicators, error toasts
 - **Preset Management**: Save and load custom adjustment presets
 - **Undo/Redo System**: Complete history management
+- **File Management**: Display current filename and editing status
+
+### 🌐 Deployment Ready
+- **GitHub Pages Integration**: Automated deployment with GitHub Actions
+- **Production Optimized**: Optimized WASM builds for web distribution
+- **Cross-Platform**: Works in all modern browsers
 
 ## Tech Stack
 
@@ -32,18 +39,28 @@ A comprehensive web-based image editor built with Rust and WebAssembly, featurin
 - **React 19** - Modern UI framework with hooks
 - **TypeScript** - Type-safe development
 - **Vite** - Fast build tool and dev server
-- **CSS3** - Professional styling with gradients and animations
+- **CSS3** - Modern flat design with animations and transitions
 
 ### Backend (Image Processing)
 - **Rust** - High-performance systems programming language
 - **WebAssembly (WASM)** - Native performance in the browser
+- **Web Workers** - Background processing for non-blocking UI
 - **wasm-bindgen** - Rust-JavaScript interoperability
 - **image crate** - Comprehensive image processing library
+
+### Deployment & CI/CD
+- **GitHub Actions** - Automated testing and deployment
+- **GitHub Pages** - Static site hosting
+- **wasm-pack** - WebAssembly package building
 
 ### Additional Libraries
 - **react-image-crop** - Interactive image cropping component
 - **npm-run-all** - Parallel script execution
 - **cargo-watch** - Auto-rebuilding for development
+
+## 🚀 Live Demo
+
+Visit the live application: **[PhotoFlow Studio](https://nagatani.github.io/image-editor/)**
 
 ## Quick Start
 
@@ -64,7 +81,7 @@ curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/nagatani/image-editor.git
 cd image-editor
 
 # Install dependencies
@@ -97,9 +114,14 @@ npm run dev:wasm           # Watch and rebuild WASM on Rust changes
 # Building
 npm run build              # Build WASM first, then build React app
 npm run build:wasm         # Build only the WASM module
+npm run build:wasm:optimized # Build optimized WASM for production
 
 # Testing
 npm test                   # Run Vitest tests
+
+# Utilities
+npm run benchmark          # Run performance benchmarks
+npm run docs              # Generate TypeScript documentation
 ```
 
 ## Project Architecture
@@ -118,15 +140,28 @@ image-editor/
 │   │   ├── AppHeader.tsx
 │   │   ├── __tests__/    # Component tests
 │   │   └── index.ts      # Component exports
+│   ├── hooks/            # Custom React hooks
+│   │   └── useImageWorker.ts # Web Worker management
+│   ├── tests/            # Integration tests
 │   ├── App.tsx           # Main application component
-│   ├── App.css           # Professional dark theme styles
+│   ├── App.css           # Modern flat design styles
 │   ├── main.tsx          # React entry point
 │   └── pkg/              # Generated WASM package (auto-generated)
 ├── crates/
 │   └── image-app/        # Rust WASM module
 │       ├── src/
-│       │   └── lib.rs    # 25+ image processing functions with tests
+│       │   ├── lib.rs    # 25+ image processing functions with tests
+│       │   ├── adjustments/ # Basic image adjustments
+│       │   ├── filters/    # Image filters and effects
+│       │   ├── transforms/ # Geometric transformations
+│       │   └── utils/      # Utility functions
 │       └── Cargo.toml    # Rust dependencies
+├── public/
+│   ├── imageWorker.js    # Web Worker script
+│   └── assets/           # Static assets
+├── .github/
+│   └── workflows/        # GitHub Actions CI/CD
+├── scripts/              # Build and utility scripts
 ├── package.json          # Node.js dependencies and scripts
 ├── TODO.md              # Feature implementation tracking
 └── CLAUDE.md            # Development guidance for Claude Code
@@ -137,6 +172,7 @@ image-editor/
 **Frontend (React)**
 - `App.tsx` - Main UI with state management using `useReducer`
 - Professional 2-pane layout (canvas + adjustment panel)
+- Web Worker integration for background processing
 - Real-time image processing with WASM integration
 
 **Backend (Rust/WASM)**
@@ -145,7 +181,13 @@ image-editor/
 - **Advanced Functions**: Curves, Levels, Highlight/Shadow, Histogram processing
 - **Filters**: Blur, Sharpen, Vignette, Noise Reduction, Emboss, Sepia
 - **Transforms**: Rotation, Flipping, Resizing, Cropping
-- Uses the `image` crate for professional-grade processing
+- Modular architecture with separate modules for different operation types
+
+**Web Worker System**
+- `imageWorker.js` - Background processing script
+- `useImageWorker.ts` - React hook for worker management
+- Progress tracking and error handling
+- Non-blocking UI experience
 
 ## 📖 Usage Guide
 
@@ -176,21 +218,24 @@ image-editor/
 - **Noise Reduction**: Advanced bilateral filtering
 - **Creative Effects**: Emboss, Sepia, Grayscale conversion
 
-### Transform Tools
-- **Rotation**: 90°, 180°, 270° quick rotations
+### Transform & Effects Section
+- **Rotation**: 90° quick rotation
 - **Flip**: Horizontal and vertical mirroring
-- **Auto Enhance**: One-click histogram equalization
+- **Cropping**: Interactive crop tool with real-time preview
+- **Grayscale**: Convert to monochrome
+- **Sepia**: Vintage sepia tone effect
 
 ### Professional Features
 - **Preset System**: Save and recall your favorite adjustment combinations
 - **Undo/Redo**: Complete edit history with Ctrl+Z/Ctrl+Y support
 - **Error Recovery**: Automatic fallback and user-friendly error messages
-- **Performance**: Debounced processing for smooth real-time editing
+- **Performance**: Background processing for smooth real-time editing
+- **File Management**: Current filename display and editing status in title
 
 ## Development Workflow
 
 1. **WASM Development**: 
-   - Edit Rust code in `crates/image-app/src/lib.rs`
+   - Edit Rust code in `crates/image-app/src/`
    - WASM automatically rebuilds via `cargo-watch`
    - Changes reflected immediately in browser
 
@@ -205,18 +250,43 @@ image-editor/
    - **Integration**: End-to-end testing of WASM-React integration
    - **Coverage**: Test coverage for critical paths and edge cases
 
+4. **Deployment**:
+   - Push to main branch triggers GitHub Actions
+   - Automated build and deployment to GitHub Pages
+   - Production-optimized WASM builds
+
 ## Performance Features
 
 - **WebAssembly**: Near-native performance for image processing
+- **Web Workers**: Background processing prevents UI blocking
 - **Incremental Processing**: Only reprocess when parameters change
 - **Memory Efficient**: Direct memory operations in Rust
 - **Responsive UI**: Non-blocking operations with loading states
+- **Optimized Builds**: Production WASM builds with size optimization
 
 ## Browser Compatibility
 
 - **Modern Browsers**: Chrome, Firefox, Safari, Edge (latest versions)
 - **WebAssembly Support**: Required (supported by 95%+ of browsers)
+- **Web Workers**: Required for background processing
 - **Mobile**: Responsive design works on iOS and Android browsers
+
+## Deployment
+
+The application is automatically deployed to GitHub Pages via GitHub Actions on every push to the main branch.
+
+### Manual Deployment
+```bash
+# Build for production
+npm run build
+
+# The dist/ folder contains the deployable application
+```
+
+### GitHub Pages Setup
+1. Enable GitHub Pages in repository settings
+2. Set source to "GitHub Actions"
+3. Push to main branch to trigger deployment
 
 ## Contributing
 
@@ -238,7 +308,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **React Team** for the powerful frontend framework
 - **image-rs** community for the comprehensive image processing library
 - **Vite** for the fast development experience
+- **GitHub** for Actions and Pages hosting
 
 ---
 
-Built with Rust and React
+**PhotoFlow Studio** - Professional image editing in your browser, powered by Rust and WebAssembly.
+
+Built with ❤️ by [nagatani](https://github.com/nagatani)
