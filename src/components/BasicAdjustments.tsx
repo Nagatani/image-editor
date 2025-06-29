@@ -1,20 +1,72 @@
 import React from 'react';
 import { AdjustmentSlider } from './AdjustmentSlider';
 
+/**
+ * Parameters object for basic image adjustments
+ */
+interface BasicAdjustmentParams {
+  /** Brightness adjustment (-100 to 100) */
+  brightness: number;
+  /** Contrast adjustment (-2 to 2) */
+  contrast: number;
+  /** Saturation adjustment (-180 to 180 degrees) */
+  saturation: number;
+  /** Color temperature adjustment (-100 to 100) */
+  temperature: number;
+  /** Hue shift (-180 to 180 degrees) */
+  hue: number;
+  /** Exposure adjustment (-3 to 3 stops) */
+  exposure: number;
+  /** Vibrance adjustment (-100 to 100) */
+  vibrance: number;
+}
+
+/**
+ * Props interface for the BasicAdjustments component
+ */
 interface BasicAdjustmentsProps {
-  params: {
-    brightness: number;
-    contrast: number;
-    saturation: number;
-    temperature: number;
-    hue: number;
-    exposure: number;
-    vibrance: number;
-  };
+  /** Current parameter values for basic adjustments */
+  params: BasicAdjustmentParams;
+  /** Callback function for parameter changes */
   onParamChange: (key: string, value: string) => void;
+  /** Whether controls are disabled */
   disabled?: boolean;
 }
 
+/**
+ * BasicAdjustments Component
+ * 
+ * Provides fundamental image adjustment controls including brightness, contrast,
+ * saturation, temperature, hue, exposure, and vibrance. These are the most commonly
+ * used adjustments for basic image enhancement and color correction.
+ * 
+ * Features:
+ * - Brightness: Linear pixel value adjustment
+ * - Contrast: Multiplicative scaling around midpoint
+ * - Saturation: HSV color space manipulation
+ * - Temperature: RGB channel color temperature adjustment
+ * - Hue: Color wheel rotation
+ * - Exposure: Exponential brightness scaling in stops
+ * - Vibrance: Selective saturation enhancement
+ * 
+ * @param props - Component props
+ * @returns React functional component
+ * 
+ * @example
+ * ```tsx
+ * const [basicParams, setBasicParams] = useState({
+ *   brightness: 0, contrast: 0, saturation: 0,
+ *   temperature: 0, hue: 0, exposure: 0, vibrance: 0
+ * });
+ * 
+ * <BasicAdjustments
+ *   params={basicParams}
+ *   onParamChange={(key, value) => 
+ *     setBasicParams(prev => ({ ...prev, [key]: parseFloat(value) }))
+ *   }
+ * />
+ * ```
+ */
 export const BasicAdjustments: React.FC<BasicAdjustmentsProps> = ({
   params,
   onParamChange,

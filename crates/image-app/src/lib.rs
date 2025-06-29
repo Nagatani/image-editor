@@ -1,6 +1,96 @@
+//! # Professional Image Editor - Rust/WASM Core
+//! 
+//! This crate provides high-performance image processing functions compiled to WebAssembly.
+//! All functions are optimized for real-time image editing in web browsers.
+//! 
+//! ## Features
+//! 
+//! - **Basic Adjustments**: Brightness, contrast, saturation, white balance
+//! - **Advanced Adjustments**: Hue, exposure, vibrance, highlights/shadows
+//! - **Professional Tools**: Color curves, levels correction, histogram equalization
+//! - **Filters**: Gaussian blur, sharpen, sepia, emboss, noise reduction
+//! - **Transforms**: Rotation, flipping, resizing, cropping
+//! - **Analysis**: Real-time histogram calculation
+//! 
+//! ## Usage
+//! 
+//! All functions follow the same pattern:
+//! - Input: `&[u8]` containing image bytes (PNG/JPEG format)
+//! - Output: `Vec<u8>` containing processed image bytes (PNG format)
+//! 
+//! ```ignore
+//! let processed = adjust_brightness(&image_bytes, 50);
+//! ```
+
 use wasm_bindgen::prelude::*;
 use image::{DynamicImage, ImageFormat, GenericImageView};
 use std::io::Cursor;
+
+// Optimized memory management and processing utilities
+mod optimization {
+    
+    /// Pre-computed lookup table for faster gamma correction
+    pub struct GammaLUT {
+        pub table: [u8; 256],
+    }
+    
+    impl GammaLUT {
+        pub fn new(gamma: f32) -> Self {
+            let mut table = [0u8; 256];
+            let inv_gamma = 1.0 / gamma;
+            
+            for i in 0..256 {
+                let normalized = (i as f32) / 255.0;
+                let corrected = normalized.powf(inv_gamma);
+                table[i] = (corrected * 255.0).clamp(0.0, 255.0) as u8;
+            }
+            
+            GammaLUT { table }
+        }
+        
+        #[inline(always)]
+        pub fn apply(&self, value: u8) -> u8 {
+            unsafe { *self.table.get_unchecked(value as usize) }
+        }
+    }
+    
+    /// Optimized pixel processing with chunked operations
+    pub fn process_pixels_chunked<F>(data: &mut [u8], mut processor: F) 
+    where 
+        F: FnMut(&mut [u8])
+    {
+        // Process in 64-byte chunks for optimal cache line usage
+        const CHUNK_SIZE: usize = 64;
+        let mut chunks_iter = data.chunks_exact_mut(CHUNK_SIZE);
+        
+        for chunk in chunks_iter.by_ref() {
+            processor(chunk);
+        }
+        
+        let remainder = chunks_iter.into_remainder();
+        
+        if !remainder.is_empty() {
+            processor(remainder);
+        }
+    }
+    
+    /// Fast integer clamp operation
+    #[inline(always)]
+    pub fn fast_clamp_u8(value: i32) -> u8 {
+        if value < 0 { 0 }
+        else if value > 255 { 255 }
+        else { value as u8 }
+    }
+    
+    /// Optimized RGB to grayscale conversion with fixed-point arithmetic
+    #[inline(always)]
+    pub fn rgb_to_gray_fast(r: u8, g: u8, b: u8) -> u8 {
+        // Using fixed-point arithmetic: 0.299*R + 0.587*G + 0.114*B
+        // Approximated as: (77*R + 150*G + 29*B) >> 8
+        let gray = (77 * r as u32 + 150 * g as u32 + 29 * b as u32) >> 8;
+        gray as u8
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -243,7 +333,6 @@ pub fn adjust_white_balance(image_data: &[u8], value: f32) -> Vec<u8> {
     
     log("White balance adjustment function called");
     
-    
     if value == 0.0 {
         log("No white balance adjustment needed, returning original image");
         return image_data.to_vec();
@@ -251,35 +340,49 @@ pub fn adjust_white_balance(image_data: &[u8], value: f32) -> Vec<u8> {
     
     // Convert to RGB8 format for pixel manipulation
     let mut rgb_img = img.to_rgb8();
+    let factor = value / 100.0;
     
-    // Normalize value to -1.0 to 1.0 range
-    let factor = value / 100.0; // -1.0 (寒色/cool) to 1.0 (暖色/warm)
+    // Pre-calculate adjustment values to avoid repeated computation
+    let (r_adjust, g_adjust, b_adjust) = if factor > 0.0 {
+        (50.0 * factor, 20.0 * factor, -40.0 * factor)
+    } else {
+        let abs_factor = factor.abs();
+        (-40.0 * abs_factor, -10.0 * abs_factor, 50.0 * abs_factor)
+    };
     
-    for pixel in rgb_img.pixels_mut() {
-        let r = pixel[0] as f32;
-        let g = pixel[1] as f32;
-        let b = pixel[2] as f32;
-        
-        let (new_r, new_g, new_b) = if factor > 0.0 {
-            // 暖色に調整 (Make warmer - increase red/orange, decrease blue)
-            (
-                r + (50.0 * factor),
-                g + (20.0 * factor),  // Slightly increase green for natural orange tone
-                b - (40.0 * factor)
-            )
-        } else {
-            // 寒色に調整 (Make cooler - decrease red, increase blue)
-            let abs_factor = factor.abs();
-            (
-                r - (40.0 * abs_factor),
-                g - (10.0 * abs_factor),  // Slightly decrease green
-                b + (50.0 * abs_factor)
-            )
-        };
-        
-        pixel[0] = new_r.clamp(0.0, 255.0) as u8;
-        pixel[1] = new_g.clamp(0.0, 255.0) as u8;
-        pixel[2] = new_b.clamp(0.0, 255.0) as u8;
+    // Process pixels in chunks for better cache locality
+    let mut pixels = rgb_img.as_flat_samples_mut();
+    let data = pixels.as_mut_slice();
+    
+    // Process 4 pixels (12 bytes) at a time for better vectorization
+    let mut chunks_iter = data.chunks_exact_mut(12);
+    
+    for chunk in chunks_iter.by_ref() {
+        // Process 4 RGB pixels simultaneously
+        for i in (0..12).step_by(3) {
+            let r = chunk[i] as f32 + r_adjust;
+            let g = chunk[i + 1] as f32 + g_adjust;
+            let b = chunk[i + 2] as f32 + b_adjust;
+            
+            chunk[i] = r.clamp(0.0, 255.0) as u8;
+            chunk[i + 1] = g.clamp(0.0, 255.0) as u8;
+            chunk[i + 2] = b.clamp(0.0, 255.0) as u8;
+        }
+    }
+    
+    let remainder = chunks_iter.into_remainder();
+    
+    // Handle remaining pixels
+    for i in (0..remainder.len()).step_by(3) {
+        if i + 2 < remainder.len() {
+            let r = remainder[i] as f32 + r_adjust;
+            let g = remainder[i + 1] as f32 + g_adjust;
+            let b = remainder[i + 2] as f32 + b_adjust;
+            
+            remainder[i] = r.clamp(0.0, 255.0) as u8;
+            remainder[i + 1] = g.clamp(0.0, 255.0) as u8;
+            remainder[i + 2] = b.clamp(0.0, 255.0) as u8;
+        }
     }
     
     let processed = image::DynamicImage::ImageRgb8(rgb_img);
@@ -411,10 +514,41 @@ pub fn to_grayscale(image_data: &[u8]) -> Vec<u8> {
     
     log("Grayscale conversion function called");
     
-    let processed = img.grayscale();
-    log("Grayscale conversion successful");
+    // Use optimized grayscale conversion instead of built-in method
+    let mut rgb_img = img.to_rgb8();
+    let mut pixels = rgb_img.as_flat_samples_mut();
+    let data = pixels.as_mut_slice();
     
-    to_bytes(&processed)
+    // Process RGB pixels in chunks of 3 bytes, convert to single grayscale value
+    let mut gray_data = Vec::with_capacity(data.len() / 3);
+    
+    optimization::process_pixels_chunked(data, |chunk| {
+        for pixel_bytes in chunk.chunks_exact(3) {
+            if pixel_bytes.len() == 3 {
+                let gray = optimization::rgb_to_gray_fast(
+                    pixel_bytes[0], 
+                    pixel_bytes[1], 
+                    pixel_bytes[2]
+                );
+                gray_data.push(gray);
+            }
+        }
+    });
+    
+    // Create grayscale image from processed data
+    let (width, height) = img.dimensions();
+    let gray_img = image::ImageBuffer::from_vec(width, height, gray_data);
+    
+    if let Some(gray_buffer) = gray_img {
+        let processed = image::DynamicImage::ImageLuma8(gray_buffer);
+        log("Optimized grayscale conversion successful");
+        to_bytes(&processed)
+    } else {
+        // Fallback to built-in method if optimization fails
+        log("Fallback to built-in grayscale conversion");
+        let processed = img.grayscale();
+        to_bytes(&processed)
+    }
 }
 
 #[wasm_bindgen]

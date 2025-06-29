@@ -7,8 +7,11 @@
     "dev": "npm-run-all --parallel dev:vite dev:wasm",
     "dev:vite": "vite",
     "dev:wasm": "cargo watch --workdir ./crates/image-app -s \"npm run build:wasm\"",
-    "build": "npm run build:wasm && vite build",
+    "build": "npm run build:wasm:optimized && ./scripts/copy-wasm-assets.sh && vite build",
     "build:wasm": "wasm-pack build ./crates/image-app --target web --out-dir ../../src/pkg",
+    "build:wasm:optimized": "./scripts/build-wasm-optimized.sh",
+    "benchmark": "./scripts/benchmark.sh",
+    "docs": "./scripts/generate-docs.sh",
     "test": "vitest",
     "preview": "vite preview"
   },

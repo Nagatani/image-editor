@@ -3,6 +3,7 @@ import './App.css';
 import init, * as wasm from './pkg/image_app.js';
 import ReactCrop, { type Crop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
+import { useImageWorker, type ImageAdjustments } from './hooks/useImageWorker';
 import {
   AppHeader,
   BasicAdjustments,
@@ -161,6 +162,7 @@ type Action =
   | { type: 'DELETE_PRESET'; payload: { index: number } }
   | { type: 'SET_PRESETS'; payload: PresetData[] }
   | { type: 'START_LOADING' }
+  | { type: 'STOP_LOADING' }
   | { type: 'SET_PROCESSED_IMAGE'; payload: string }
   | { type: 'RESET_PARAMS' }
   | { type: 'UNDO' }
@@ -289,6 +291,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, presets: action.payload };
     case 'START_LOADING':
       return { ...state, isLoading: true };
+    case 'STOP_LOADING':
+      return { ...state, isLoading: false };
     case 'SET_PROCESSED_IMAGE':
       return { ...state, isLoading: false, processedImageUrl: action.payload };
     case 'RESET_PARAMS':
@@ -386,6 +390,14 @@ function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [crop, setCrop] = useState<Crop>();
   const [isWasmReady, setWasmReady] = useState(false);
+  
+  // Web Worker for background processing
+  const { 
+    processImage: processWithWorker, 
+    isReady: isWorkerReady,
+    isProcessing: isWorkerProcessing,
+    cancelProcessing
+  } = useImageWorker();
   const [isProcessMenuOpen, setIsProcessMenuOpen] = useState(false);
   const [rotationAngle, setRotationAngle] = useState(0);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -563,28 +575,78 @@ function App() {
   // Optimized processing queue to prioritize fast operations
   const processImage = useCallback(async (imageData: Uint8Array): Promise<Uint8Array> => {
     let processedData = imageData;
+    let currentData: Uint8Array | null = null;
     
-    // Step 1: Fast basic adjustments (processed immediately)
+    // Helper function to manage memory and clean up intermediate results
+    const applyAdjustment = (data: Uint8Array, adjustmentFn: () => Uint8Array): Uint8Array => {
+      const result = adjustmentFn();
+      // Clean up previous data if it's not the original
+      if (currentData && currentData !== imageData) {
+        currentData = null; // Allow GC
+      }
+      currentData = result;
+      return result;
+    };
+    
+    // Step 1: Fast basic adjustments (batched for better performance)
     setProcessingProgress('基本調整を適用中...');
-    processedData = wasm.adjust_brightness(processedData, state.params.brightness);
-    processedData = wasm.adjust_contrast(processedData, state.params.contrast * 0.1);
-    processedData = wasm.adjust_saturation(processedData, state.params.saturation * 0.1);
-    processedData = wasm.adjust_white_balance(processedData, state.params.temperature);
     
-    // Step 2: Color adjustments
-    if (state.params.hue !== 0) {
-      setProcessingProgress('色相調整を適用中...');
-      processedData = wasm.adjust_hue(processedData, state.params.hue);
+    // Only apply adjustments if they're not at default values
+    const needsBrightness = state.params.brightness !== 0;
+    const needsContrast = state.params.contrast !== 0;
+    const needsSaturation = state.params.saturation !== 0;
+    const needsTemperature = state.params.temperature !== 0;
+    
+    if (needsBrightness || needsContrast || needsSaturation || needsTemperature) {
+      if (needsBrightness) {
+        processedData = applyAdjustment(processedData, () => 
+          wasm.adjust_brightness(processedData, state.params.brightness)
+        );
+      }
+      if (needsContrast) {
+        processedData = applyAdjustment(processedData, () => 
+          wasm.adjust_contrast(processedData, state.params.contrast * 0.1)
+        );
+      }
+      if (needsSaturation) {
+        processedData = applyAdjustment(processedData, () => 
+          wasm.adjust_saturation(processedData, state.params.saturation * 0.1)
+        );
+      }
+      if (needsTemperature) {
+        processedData = applyAdjustment(processedData, () => 
+          wasm.adjust_white_balance(processedData, state.params.temperature)
+        );
+      }
     }
     
-    if (state.params.exposure !== 0) {
-      setProcessingProgress('露出調整を適用中...');
-      processedData = wasm.adjust_exposure(processedData, state.params.exposure);
-    }
+    // Step 2: Color adjustments (yield to UI after basic adjustments)
+    const hasColorAdjustments = state.params.hue !== 0 || state.params.exposure !== 0 || state.params.vibrance !== 0;
     
-    if (state.params.vibrance !== 0) {
-      setProcessingProgress('バイブランス調整を適用中...');
-      processedData = wasm.adjust_vibrance(processedData, state.params.vibrance);
+    if (hasColorAdjustments) {
+      // Small delay to allow UI updates
+      await new Promise(resolve => setTimeout(resolve, 0));
+      
+      if (state.params.hue !== 0) {
+        setProcessingProgress('色相調整を適用中...');
+        processedData = applyAdjustment(processedData, () => 
+          wasm.adjust_hue(processedData, state.params.hue)
+        );
+      }
+      
+      if (state.params.exposure !== 0) {
+        setProcessingProgress('露出調整を適用中...');
+        processedData = applyAdjustment(processedData, () => 
+          wasm.adjust_exposure(processedData, state.params.exposure)
+        );
+      }
+      
+      if (state.params.vibrance !== 0) {
+        setProcessingProgress('バイブランス調整を適用中...');
+        processedData = applyAdjustment(processedData, () => 
+          wasm.adjust_vibrance(processedData, state.params.vibrance)
+        );
+      }
     }
     
     // Step 3: Advanced adjustments (potentially slower)
@@ -633,41 +695,118 @@ function App() {
   }, [state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, state.highlightShadowParams, state.curveParams, state.levelsParams]);
 
   const applyChanges = useCallback(() => {
-    if (!state.originalImage || !isWasmReady || isProcessing) return;
+    if (!state.originalImage || (!isWasmReady && !isWorkerReady) || isWorkerProcessing) return;
     
-    // Clear any existing debounce timeout
+    // Clear any existing debounce timeout and cancel processing
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
+      cancelProcessing();
     }
     
     // Debounce rapid changes
     debounceTimeoutRef.current = setTimeout(async () => {
-      setIsProcessing(true);
-      dispatch({ type: 'START_LOADING' });
-      setProcessingProgress('処理を開始中...');
-      
-      try {
-        const processedData = await processImage(state.originalImage!.data);
-        setProcessingProgress('画像を生成中...');
+      // Prefer Worker processing, fallback to direct WASM
+      if (isWorkerReady) {
+        // Use Web Worker for background processing
+        const adjustments: ImageAdjustments = {
+          brightness: state.params.brightness,
+          contrast: state.params.contrast,
+          saturation: state.params.saturation,
+          temperature: state.params.temperature,
+          hue: state.params.hue,
+          exposure: state.params.exposure,
+          vibrance: state.params.vibrance,
+          highlights: state.highlightShadowParams.highlights,
+          shadows: state.highlightShadowParams.shadows,
+          redGamma: state.curveParams.redGamma,
+          greenGamma: state.curveParams.greenGamma,
+          blueGamma: state.curveParams.blueGamma,
+          blackPoint: state.levelsParams.blackPoint,
+          whitePoint: state.levelsParams.whitePoint,
+          gamma: state.levelsParams.gamma,
+          blur: state.blurParams.sigma,
+          sharpen: state.sharpenParams.amount,
+          vignetteStrength: state.vignetteParams.strength,
+          vignetteRadius: state.vignetteParams.radius,
+          noiseReduction: state.noiseReductionParams.strength
+        };
         
-        const url = URL.createObjectURL(new Blob([processedData]));
-        dispatch({ type: 'SET_PROCESSED_IMAGE', payload: url });
+        dispatch({ type: 'START_LOADING' });
         
-        // Clean up old blob URLs to prevent memory leaks
-        if (state.processedImageUrl && state.processedImageUrl !== state.originalImage!.url) {
-          URL.revokeObjectURL(state.processedImageUrl);
+        try {
+          const result = await processWithWorker(
+            state.originalImage!.data,
+            adjustments,
+            (progress) => {
+              setProcessingProgress(progress.message);
+            }
+          );
+          
+          if (result.success && result.data) {
+            const url = URL.createObjectURL(new Blob([result.data]));
+            dispatch({ type: 'SET_PROCESSED_IMAGE', payload: url });
+            
+            // Clean up old blob URLs
+            if (state.processedImageUrl && state.processedImageUrl !== state.originalImage!.url) {
+              URL.revokeObjectURL(state.processedImageUrl);
+            }
+          } else {
+            throw new Error(result.error || 'Worker処理に失敗しました');
+          }
+        } catch (error) {
+          console.error('Worker processing failed:', error);
+          const errorMsg = error instanceof Error ? error.message : '画像処理中に予期しないエラーが発生しました';
+          showErrorMessage(`画像処理エラー: ${errorMsg}`);
+        } finally {
+          setProcessingProgress('');
+          dispatch({ type: 'STOP_LOADING' });
         }
-      } catch (error) {
-        console.error('Image processing failed:', error);
-        const errorMsg = error instanceof Error ? error.message : '画像処理中に予期しないエラーが発生しました';
-        showErrorMessage(`画像処理エラー: ${errorMsg}`);
-        setProcessingProgress('');
-      } finally {
-        setIsProcessing(false);
-        setProcessingProgress('');
+      } else if (isWasmReady) {
+        // Fallback to direct WASM processing
+        setIsProcessing(true);
+        dispatch({ type: 'START_LOADING' });
+        setProcessingProgress('処理を開始中...');
+        
+        try {
+          const processedData = await processImage(state.originalImage!.data);
+          setProcessingProgress('画像を生成中...');
+          
+          const url = URL.createObjectURL(new Blob([processedData]));
+          dispatch({ type: 'SET_PROCESSED_IMAGE', payload: url });
+          
+          if (state.processedImageUrl && state.processedImageUrl !== state.originalImage!.url) {
+            URL.revokeObjectURL(state.processedImageUrl);
+          }
+        } catch (error) {
+          console.error('Fallback processing failed:', error);
+          const errorMsg = error instanceof Error ? error.message : '画像処理中に予期しないエラーが発生しました';
+          showErrorMessage(`画像処理エラー: ${errorMsg}`);
+        } finally {
+          setIsProcessing(false);
+          setProcessingProgress('');
+          dispatch({ type: 'STOP_LOADING' });
+        }
       }
     }, 150); // 150ms debounce
-  }, [state.originalImage, state.processedImageUrl, isWasmReady, isProcessing, processImage, showErrorMessage]);
+  }, [
+    state.originalImage, 
+    state.processedImageUrl, 
+    state.params, 
+    state.blurParams, 
+    state.sharpenParams, 
+    state.vignetteParams, 
+    state.noiseReductionParams,
+    state.highlightShadowParams,
+    state.curveParams,
+    state.levelsParams,
+    isWasmReady,
+    isWorkerReady, 
+    isWorkerProcessing, 
+    processWithWorker,
+    cancelProcessing,
+    processImage,
+    showErrorMessage
+  ]);
 
   useEffect(() => {
     if (state.originalImage) {
@@ -1959,14 +2098,29 @@ function App() {
 
       {/* Status Bar */}
       <div className="status-bar">
+        <div className="status-left">
+          <span className={`worker-status ${isWorkerReady ? 'ready' : 'not-ready'}`}>
+            {isWorkerReady ? '🚀 Worker Ready' : '⏳ Worker Loading'}
+          </span>
+        </div>
         <div className="status-center">
           {state.originalImage ? `画像サイズ: ${imgRef.current?.naturalWidth || 0} × ${imgRef.current?.naturalHeight || 0}px` : '画像が選択されていません'}
         </div>
+        <div className="status-right">
+          {isWorkerProcessing && (
+            <span className="processing-status">🔄 処理中</span>
+          )}
+        </div>
       </div>
 
-      {(state.isLoading || isProcessing) && state.originalImage && (
+      {(state.isLoading || isProcessing || isWorkerProcessing) && state.originalImage && (
         <div className="processing-indicator">
-          {processingProgress || '処理中...'}
+          <div className="processing-message">
+            {processingProgress || (isWorkerProcessing ? 'バックグラウンド処理中...' : '処理中...')}
+          </div>
+          <div className="processing-mode">
+            {isWorkerProcessing ? '🔄 Worker処理' : isProcessing ? '⚡ Direct処理' : ''}
+          </div>
         </div>
       )}
       

@@ -1,0 +1,83 @@
+{
+  "entryPoints": ["src"],
+  "entryPointStrategy": "expand",
+  "out": "docs/typescript",
+  "name": "Image Editor - TypeScript API",
+  "theme": "default",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeExternals": true,
+  "readme": "README.md",
+  "categorizeByGroup": true,
+  "searchInComments": true,
+  "sort": ["source-order"],
+  "kindSortOrder": [
+    "Document",
+    "Project",
+    "Module",
+    "Namespace",
+    "Enum",
+    "EnumMember",
+    "Class",
+    "Interface",
+    "TypeAlias",
+    "Constructor",
+    "Property",
+    "Variable",
+    "Function",
+    "Accessor",
+    "Method",
+    "Parameter",
+    "TypeParameter",
+    "TypeLiteral",
+    "CallSignature",
+    "ConstructorSignature",
+    "IndexSignature",
+    "GetSignature",
+    "SetSignature"
+  ],
+  "visibilityFilters": {
+    "protected": false,
+    "private": false,
+    "inherited": true,
+    "external": false
+  },
+  "searchCategoryBoosts": {
+    "Components": 2,
+    "Hooks": 1.5,
+    "Types": 1,
+    "Utils": 0.5
+  },
+  "navigationLinks": {
+    "GitHub": "https://github.com/user/image-editor",
+    "Performance": "./PERFORMANCE.md"
+  },
+  "sidebarLinks": {
+    "GitHub Repository": "https://github.com/user/image-editor",
+    "Performance Benchmarks": "./PERFORMANCE.md",
+    "Rust Documentation": "./docs/rust/doc/image_app/index.html"
+  },
+  "plugin": ["typedoc-plugin-markdown"],
+  "githubPages": false,
+  "gitRevision": "main",
+  "gitRemote": "origin",
+  "exclude": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ],
+  "externalPattern": [
+    "**/node_modules/**"
+  ],
+  "excludeNotDocumented": false,
+  "excludeInternal": true,
+  "disableSources": false,
+  "sourceLinkTemplate": "https://github.com/user/image-editor/blob/{gitRevision}/{path}#L{line}",
+  "hideGenerator": false,
+  "cleanOutputDir": true
+}
