@@ -3,6 +3,15 @@ import './App.css';
 import init, * as wasm from './pkg/image_app.js';
 import ReactCrop, { type Crop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
+import {
+  AppHeader,
+  BasicAdjustments,
+  FilterControls,
+  AdvancedAdjustments,
+  TransformTools,
+  PresetManager,
+  HistogramDisplay
+} from './components';
 
 // 状態管理のためのReducer
 type PresetData = {
@@ -393,8 +402,8 @@ function App() {
   const [processingProgress, setProcessingProgress] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [showError, setShowError] = useState(false);
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimeoutRef = useRef<number | null>(null);
+  const errorTimeoutRef = useRef<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 

@@ -2,6 +2,157 @@ use wasm_bindgen::prelude::*;
 use image::{DynamicImage, ImageFormat, GenericImageView};
 use std::io::Cursor;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{ImageBuffer, Rgb};
+
+    // Mock the log function for tests
+    fn log(_s: &str) {
+        // No-op for tests
+    }
+
+    fn create_test_image() -> DynamicImage {
+        let img = ImageBuffer::from_fn(100, 100, |x, y| {
+            Rgb([(x % 256) as u8, (y % 256) as u8, 128])
+        });
+        DynamicImage::ImageRgb8(img)
+    }
+
+    fn image_to_bytes(img: &DynamicImage) -> Vec<u8> {
+        let mut buffer = Cursor::new(Vec::new());
+        img.write_to(&mut buffer, ImageFormat::Png).unwrap();
+        buffer.into_inner()
+    }
+
+    #[test]
+    fn test_load_image() {
+        let test_img = create_test_image();
+        let bytes = image_to_bytes(&test_img);
+        
+        let loaded = load_image(&bytes);
+        assert_eq!(loaded.width(), 100);
+        assert_eq!(loaded.height(), 100);
+    }
+
+    #[test]
+    fn test_to_bytes() {
+        let test_img = create_test_image();
+        let bytes = to_bytes(&test_img);
+        
+        // Should be able to load the bytes back into an image
+        let reloaded = image::load_from_memory(&bytes).unwrap();
+        assert_eq!(reloaded.width(), 100);
+        assert_eq!(reloaded.height(), 100);
+    }
+
+    #[test]
+    fn test_adjust_brightness() {
+        let test_img = create_test_image();
+        let input_bytes = image_to_bytes(&test_img);
+        
+        let result = adjust_brightness(&input_bytes, 50);
+        assert!(!result.is_empty());
+        
+        // Should be able to load the result
+        let processed = image::load_from_memory(&result).unwrap();
+        assert_eq!(processed.width(), 100);
+        assert_eq!(processed.height(), 100);
+    }
+
+    #[test]
+    fn test_adjust_contrast() {
+        let test_img = create_test_image();
+        let input_bytes = image_to_bytes(&test_img);
+        
+        let result = adjust_contrast(&input_bytes, 1.5);
+        assert!(!result.is_empty());
+        
+        let processed = image::load_from_memory(&result).unwrap();
+        assert_eq!(processed.width(), 100);
+        assert_eq!(processed.height(), 100);
+    }
+
+    #[test]
+    fn test_to_grayscale() {
+        let test_img = create_test_image();
+        let input_bytes = image_to_bytes(&test_img);
+        
+        let result = to_grayscale(&input_bytes);
+        assert!(!result.is_empty());
+        
+        let processed = image::load_from_memory(&result).unwrap();
+        assert_eq!(processed.width(), 100);
+        assert_eq!(processed.height(), 100);
+    }
+
+    #[test]
+    fn test_gaussian_blur() {
+        let test_img = create_test_image();
+        let input_bytes = image_to_bytes(&test_img);
+        
+        let result = gaussian_blur(&input_bytes, 2.0);
+        assert!(!result.is_empty());
+        
+        let processed = image::load_from_memory(&result).unwrap();
+        assert_eq!(processed.width(), 100);
+        assert_eq!(processed.height(), 100);
+    }
+
+    #[test]
+    fn test_rotate() {
+        let test_img = create_test_image();
+        let input_bytes = image_to_bytes(&test_img);
+        
+        let result = rotate(&input_bytes, 90);
+        assert!(!result.is_empty());
+        
+        let processed = image::load_from_memory(&result).unwrap();
+        // After 90 degree rotation, dimensions should be swapped
+        assert_eq!(processed.width(), 100);
+        assert_eq!(processed.height(), 100);
+    }
+
+    #[test]
+    fn test_flip_horizontal() {
+        let test_img = create_test_image();
+        let input_bytes = image_to_bytes(&test_img);
+        
+        let result = flip_horizontal(&input_bytes);
+        assert!(!result.is_empty());
+        
+        let processed = image::load_from_memory(&result).unwrap();
+        assert_eq!(processed.width(), 100);
+        assert_eq!(processed.height(), 100);
+    }
+
+    #[test]
+    fn test_resize() {
+        let test_img = create_test_image();
+        let input_bytes = image_to_bytes(&test_img);
+        
+        let result = resize(&input_bytes, 50, 50);
+        assert!(!result.is_empty());
+        
+        let processed = image::load_from_memory(&result).unwrap();
+        assert_eq!(processed.width(), 50);
+        assert_eq!(processed.height(), 50);
+    }
+
+    #[test]
+    fn test_apply_sepia() {
+        let test_img = create_test_image();
+        let input_bytes = image_to_bytes(&test_img);
+        
+        let result = apply_sepia(&input_bytes);
+        assert!(!result.is_empty());
+        
+        let processed = image::load_from_memory(&result).unwrap();
+        assert_eq!(processed.width(), 100);
+        assert_eq!(processed.height(), 100);
+    }
+}
+
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]

@@ -1,20 +1,30 @@
-# Rust/WASM Image Editor
+# Professional Image Editor
 
-A high-performance web-based image editor built with Rust and WebAssembly, featuring a professional dark theme UI inspired by desktop image editing software.
+A comprehensive web-based image editor built with Rust and WebAssembly, featuring professional-grade image processing capabilities and an intuitive dark theme UI inspired by desktop editing software.
 
-## Features
+## ✨ Features
 
-### Image Processing (Powered by Rust/WASM)
-- **Image Adjustments**: Brightness, Contrast, Saturation, White Balance
-- **Image Operations**: 90° Rotation, Precise Cropping
-- **Real-time Preview**: Instant feedback for all adjustments
-- **High Performance**: Native Rust performance in the browser via WebAssembly
+### 🎨 Complete Image Processing Suite
+- **Basic Adjustments**: Brightness, Contrast, Saturation, Temperature, Hue, Exposure, Vibrance
+- **Advanced Tools**: Highlight/Shadow correction, Color Curves (RGB), Levels correction
+- **Filters & Effects**: Gaussian Blur, Sharpen, Vignette, Noise Reduction, Emboss, Sepia, Grayscale
+- **Geometric Operations**: Rotation (90°/180°/270°), Horizontal/Vertical flip, Precision cropping, Resize
+- **Professional Features**: Histogram Equalization, Real-time Histogram display, Preset system
 
-### Professional UI/UX
-- **Dark Theme**: Eye-friendly professional interface
-- **Responsive Design**: Works on desktop, tablet, and mobile devices
-- **Interactive Cropping**: Visual crop selection with react-image-crop
-- **Intuitive Controls**: Slider + numeric input for precise adjustments
+### 🚀 Performance & Quality
+- **Rust/WASM Engine**: Near-native performance for complex image operations
+- **Real-time Processing**: Instant preview with debounced updates
+- **Memory Efficient**: Optimized memory management and cleanup
+- **Error Handling**: Comprehensive error recovery and user feedback
+
+### 💡 Professional UI/UX
+- **Modern Interface**: Clean, professional dark theme
+- **Component Architecture**: Modular, reusable React components
+- **Responsive Design**: Works seamlessly across devices
+- **Advanced Controls**: Dual slider/numeric inputs for precision
+- **Visual Feedback**: Loading states, progress indicators, error toasts
+- **Preset Management**: Save and load custom adjustment presets
+- **Undo/Redo System**: Complete history management
 
 ## Tech Stack
 
@@ -97,6 +107,17 @@ npm test                   # Run Vitest tests
 ```
 image-editor/
 ├── src/                   # React frontend
+│   ├── components/       # Modular React components
+│   │   ├── AdjustmentSlider.tsx
+│   │   ├── BasicAdjustments.tsx
+│   │   ├── FilterControls.tsx
+│   │   ├── AdvancedAdjustments.tsx
+│   │   ├── TransformTools.tsx
+│   │   ├── PresetManager.tsx
+│   │   ├── HistogramDisplay.tsx
+│   │   ├── AppHeader.tsx
+│   │   ├── __tests__/    # Component tests
+│   │   └── index.ts      # Component exports
 │   ├── App.tsx           # Main application component
 │   ├── App.css           # Professional dark theme styles
 │   ├── main.tsx          # React entry point
@@ -104,9 +125,10 @@ image-editor/
 ├── crates/
 │   └── image-app/        # Rust WASM module
 │       ├── src/
-│       │   └── lib.rs    # Image processing functions
+│       │   └── lib.rs    # 25+ image processing functions with tests
 │       └── Cargo.toml    # Rust dependencies
 ├── package.json          # Node.js dependencies and scripts
+├── TODO.md              # Feature implementation tracking
 └── CLAUDE.md            # Development guidance for Claude Code
 ```
 
@@ -118,23 +140,52 @@ image-editor/
 - Real-time image processing with WASM integration
 
 **Backend (Rust/WASM)**
-- `lib.rs` - Exposes image processing functions via `wasm-bindgen`
-- Functions: `adjust_brightness`, `adjust_contrast`, `adjust_saturation`, `adjust_white_balance`, `rotate`, `crop`
-- Uses the `image` crate for high-performance processing
+- `lib.rs` - Exposes 25+ image processing functions via `wasm-bindgen`
+- **Core Functions**: Brightness, Contrast, Saturation, Hue, Exposure, Vibrance
+- **Advanced Functions**: Curves, Levels, Highlight/Shadow, Histogram processing
+- **Filters**: Blur, Sharpen, Vignette, Noise Reduction, Emboss, Sepia
+- **Transforms**: Rotation, Flipping, Resizing, Cropping
+- Uses the `image` crate for professional-grade processing
 
-## Usage
+## 📖 Usage Guide
 
-1. **Open Image**: Click "ファイルを開く" to select an image
-2. **Adjust Settings**: Use the right panel sliders to modify:
-   - Brightness (-100 to +100)
-   - Contrast (-100 to +100) 
-   - Saturation (-100 to +100)
-   - Temperature (-100 to +100)
-3. **Rotate**: Click "回転" for 90° clockwise rotation
-4. **Crop**: 
-   - Drag to select crop area on the image
-   - Click "トリミング" to apply
-5. **Reset**: Click "リセット" to restore original settings
+### Getting Started
+1. **Load Image**: Click "📁 画像を開く" to select your image (supports JPEG, PNG, WebP, AVIF, BMP, TIFF)
+2. **Real-time Editing**: All adjustments are applied instantly with live preview
+3. **Save Results**: Click "💾 保存" to download your edited image in multiple formats
+
+### Basic Adjustments Panel
+- **Brightness** (-100 to +100): Lighten or darken the entire image
+- **Contrast** (-2.0 to +2.0): Increase or decrease tonal contrast
+- **Saturation** (-180 to +180): Enhance or reduce color intensity
+- **Temperature** (-100 to +100): Warm (orange) or cool (blue) color cast
+- **Hue** (-180° to +180°): Shift all colors around the color wheel
+- **Exposure** (-3 to +3 stops): Simulate camera exposure adjustments
+- **Vibrance** (-100 to +100): Natural saturation enhancement (protects skin tones)
+
+### Advanced Tools
+- **Highlights/Shadows**: Separate control for bright and dark areas
+- **Color Curves**: Individual RGB channel gamma correction
+- **Levels**: Black point, white point, and gamma adjustment
+- **Histogram**: Real-time color distribution visualization
+
+### Filters & Effects
+- **Gaussian Blur**: Artistic blur with adjustable intensity
+- **Sharpen**: Enhance image details and edges
+- **Vignette**: Subtle darkening around image edges
+- **Noise Reduction**: Advanced bilateral filtering
+- **Creative Effects**: Emboss, Sepia, Grayscale conversion
+
+### Transform Tools
+- **Rotation**: 90°, 180°, 270° quick rotations
+- **Flip**: Horizontal and vertical mirroring
+- **Auto Enhance**: One-click histogram equalization
+
+### Professional Features
+- **Preset System**: Save and recall your favorite adjustment combinations
+- **Undo/Redo**: Complete edit history with Ctrl+Z/Ctrl+Y support
+- **Error Recovery**: Automatic fallback and user-friendly error messages
+- **Performance**: Debounced processing for smooth real-time editing
 
 ## Development Workflow
 
@@ -149,8 +200,10 @@ image-editor/
    - TypeScript ensures type safety
 
 3. **Testing**:
-   - Unit tests with Vitest
-   - Integration tests for WASM functions
+   - **React Components**: Comprehensive unit tests with Vitest and Testing Library
+   - **Rust Functions**: Unit tests for all image processing functions
+   - **Integration**: End-to-end testing of WASM-React integration
+   - **Coverage**: Test coverage for critical paths and edge cases
 
 ## Performance Features
 
