@@ -401,7 +401,6 @@ function App() {
     currentProgress: workerProgress,
     cancelProcessing
   } = useImageWorker();
-  const [isProcessMenuOpen, setIsProcessMenuOpen] = useState(false);
   const [rotationAngle, setRotationAngle] = useState(0);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveFileName, setSaveFileName] = useState('edited-image');
@@ -421,7 +420,6 @@ function App() {
   const debounceTimeoutRef = useRef<number | null>(null);
   const errorTimeoutRef = useRef<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     console.log('Initializing WASM...');
@@ -589,12 +587,14 @@ function App() {
   };
 
   const getWorkerStatusText = () => {
-    // Debug logging
-    console.log('Worker Status:', { 
-      isWorkerReady, 
-      isWasmInitialized, 
-      finalReady: isWorkerFullyReady 
-    });
+    // Debug logging (reduced frequency)
+    if (Math.random() < 0.1) { // Only log 10% of the time to reduce spam
+      console.log('Worker Status:', { 
+        isWorkerReady, 
+        isWasmInitialized, 
+        finalReady: isWorkerFullyReady 
+      });
+    }
     
     if (isWorkerFullyReady) return '🚀 Worker Ready';
     if (isWorkerReady && !isWasmInitialized) return '⚡ WASM Loading...';
@@ -915,19 +915,6 @@ function App() {
   
   // Manual processing trigger only
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsProcessMenuOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -974,41 +961,55 @@ function App() {
     if (!state.originalImage || !isWasmReady) return;
     saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
+    setProcessingProgress('水平反転を適用中...');
     
-    try {
-      const flipped = wasm.flip_horizontal(state.originalImage.data);
-      console.log('Horizontal flip result length:', flipped.length);
-      const url = URL.createObjectURL(new Blob([flipped]));
-      dispatch({type: 'SET_IMAGE', payload: {data: flipped, url}});
-      // Save state after operation for redo functionality
-      setTimeout(() => {
-        dispatch({ type: 'SAVE_TO_HISTORY' });
-      }, 100);
-      console.log('History after flip:', state.history.length, 'Index:', state.historyIndex);
-    } catch (error) {
-      console.error('Horizontal flip failed:', error);
-      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
-    }
+    setTimeout(() => {
+      try {
+        const flipped = wasm.flip_horizontal(state.originalImage!.data);
+        console.log('Horizontal flip result length:', flipped.length);
+        const url = URL.createObjectURL(new Blob([flipped]));
+        dispatch({type: 'SET_IMAGE', payload: {data: flipped, url}});
+        // Save state after operation for redo functionality
+        setTimeout(() => {
+          dispatch({ type: 'SAVE_TO_HISTORY' });
+        }, 100);
+        console.log('History after flip:', state.history.length, 'Index:', state.historyIndex);
+      } catch (error) {
+        console.error('Horizontal flip failed:', error);
+        dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage!.url });
+        showErrorMessage('水平反転処理に失敗しました');
+      } finally {
+        setProcessingProgress('');
+        dispatch({ type: 'STOP_LOADING' });
+      }
+    }, 50);
   };
 
   const handleFlipVertical = () => {
     if (!state.originalImage || !isWasmReady) return;
     saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
+    setProcessingProgress('垂直反転を適用中...');
     
-    try {
-      const flipped = wasm.flip_vertical(state.originalImage.data);
-      console.log('Vertical flip result length:', flipped.length);
-      const url = URL.createObjectURL(new Blob([flipped]));
-      dispatch({type: 'SET_IMAGE', payload: {data: flipped, url}});
-      // Save state after operation for redo functionality
-      setTimeout(() => {
-        dispatch({ type: 'SAVE_TO_HISTORY' });
-      }, 100);
-    } catch (error) {
-      console.error('Vertical flip failed:', error);
-      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
-    }
+    setTimeout(() => {
+      try {
+        const flipped = wasm.flip_vertical(state.originalImage!.data);
+        console.log('Vertical flip result length:', flipped.length);
+        const url = URL.createObjectURL(new Blob([flipped]));
+        dispatch({type: 'SET_IMAGE', payload: {data: flipped, url}});
+        // Save state after operation for redo functionality
+        setTimeout(() => {
+          dispatch({ type: 'SAVE_TO_HISTORY' });
+        }, 100);
+      } catch (error) {
+        console.error('Vertical flip failed:', error);
+        dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage!.url });
+        showErrorMessage('垂直反転処理に失敗しました');
+      } finally {
+        setProcessingProgress('');
+        dispatch({ type: 'STOP_LOADING' });
+      }
+    }, 50);
   };
 
   const handleRotateArbitrary = () => {
@@ -1075,80 +1076,108 @@ function App() {
     if (!state.originalImage || !isWasmReady) return;
     saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
+    setProcessingProgress('グレースケール変換を適用中...');
     
-    try {
-      const grayscaled = wasm.to_grayscale(state.originalImage.data);
-      console.log('Grayscale result length:', grayscaled.length);
-      const url = URL.createObjectURL(new Blob([grayscaled]));
-      dispatch({type: 'SET_IMAGE', payload: {data: grayscaled, url}});
-      // Save state after operation for redo functionality
-      setTimeout(() => {
-        dispatch({ type: 'SAVE_TO_HISTORY' });
-      }, 100);
-    } catch (error) {
-      console.error('Grayscale failed:', error);
-      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
-    }
+    setTimeout(() => {
+      try {
+        const grayscaled = wasm.to_grayscale(state.originalImage!.data);
+        console.log('Grayscale result length:', grayscaled.length);
+        const url = URL.createObjectURL(new Blob([grayscaled]));
+        dispatch({type: 'SET_IMAGE', payload: {data: grayscaled, url}});
+        // Save state after operation for redo functionality
+        setTimeout(() => {
+          dispatch({ type: 'SAVE_TO_HISTORY' });
+        }, 100);
+      } catch (error) {
+        console.error('Grayscale failed:', error);
+        dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage!.url });
+        showErrorMessage('グレースケール変換に失敗しました');
+      } finally {
+        setProcessingProgress('');
+        dispatch({ type: 'STOP_LOADING' });
+      }
+    }, 50);
   };
 
   const handleSepia = () => {
     if (!state.originalImage || !isWasmReady) return;
     saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
+    setProcessingProgress('セピア効果を適用中...');
     
-    try {
-      const sepiaed = wasm.apply_sepia(state.originalImage.data);
-      console.log('Sepia result length:', sepiaed.length);
-      const url = URL.createObjectURL(new Blob([sepiaed]));
-      dispatch({type: 'SET_IMAGE', payload: {data: sepiaed, url}});
-      // Save state after operation for redo functionality
-      setTimeout(() => {
-        dispatch({ type: 'SAVE_TO_HISTORY' });
-      }, 100);
-    } catch (error) {
-      console.error('Sepia failed:', error);
-      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
-    }
+    setTimeout(() => {
+      try {
+        const sepiaed = wasm.apply_sepia(state.originalImage!.data);
+        console.log('Sepia result length:', sepiaed.length);
+        const url = URL.createObjectURL(new Blob([sepiaed]));
+        dispatch({type: 'SET_IMAGE', payload: {data: sepiaed, url}});
+        // Save state after operation for redo functionality
+        setTimeout(() => {
+          dispatch({ type: 'SAVE_TO_HISTORY' });
+        }, 100);
+      } catch (error) {
+        console.error('Sepia failed:', error);
+        dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage!.url });
+        showErrorMessage('セピア効果の適用に失敗しました');
+      } finally {
+        setProcessingProgress('');
+        dispatch({ type: 'STOP_LOADING' });
+      }
+    }, 50);
   };
 
   const handleEmboss = () => {
     if (!state.originalImage || !isWasmReady) return;
     saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
+    setProcessingProgress('エンボス効果を適用中...');
     
-    try {
-      const embossed = wasm.apply_emboss(state.originalImage.data);
-      console.log('Emboss result length:', embossed.length);
-      const url = URL.createObjectURL(new Blob([embossed]));
-      dispatch({type: 'SET_IMAGE', payload: {data: embossed, url}});
-      // Save state after operation for redo functionality
-      setTimeout(() => {
-        dispatch({ type: 'SAVE_TO_HISTORY' });
-      }, 100);
-    } catch (error) {
-      console.error('Emboss failed:', error);
-      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
-    }
+    setTimeout(() => {
+      try {
+        const embossed = wasm.apply_emboss(state.originalImage!.data);
+        console.log('Emboss result length:', embossed.length);
+        const url = URL.createObjectURL(new Blob([embossed]));
+        dispatch({type: 'SET_IMAGE', payload: {data: embossed, url}});
+        // Save state after operation for redo functionality
+        setTimeout(() => {
+          dispatch({ type: 'SAVE_TO_HISTORY' });
+        }, 100);
+      } catch (error) {
+        console.error('Emboss failed:', error);
+        dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage!.url });
+        showErrorMessage('エンボス効果の適用に失敗しました');
+      } finally {
+        setProcessingProgress('');
+        dispatch({ type: 'STOP_LOADING' });
+      }
+    }, 50);
   };
 
   const handleHistogramEqualization = () => {
     if (!state.originalImage || !isWasmReady) return;
     saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
+    setProcessingProgress('ヒストグラム均等化を適用中...');
     
-    try {
-      const equalized = wasm.histogram_equalization(state.originalImage.data);
-      console.log('Histogram equalization result length:', equalized.length);
-      const url = URL.createObjectURL(new Blob([equalized]));
-      dispatch({type: 'SET_IMAGE', payload: {data: equalized, url}});
-      // Save state after operation for redo functionality
-      setTimeout(() => {
-        dispatch({ type: 'SAVE_TO_HISTORY' });
-      }, 100);
-    } catch (error) {
-      console.error('Histogram equalization failed:', error);
-      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
-    }
+    setTimeout(() => {
+      try {
+        const equalized = wasm.histogram_equalization(state.originalImage!.data);
+        console.log('Histogram equalization result length:', equalized.length);
+        const url = URL.createObjectURL(new Blob([equalized]));
+        dispatch({type: 'SET_IMAGE', payload: {data: equalized, url}});
+        // Save state after operation for redo functionality
+        setTimeout(() => {
+          dispatch({ type: 'SAVE_TO_HISTORY' });
+        }, 100);
+      } catch (error) {
+        console.error('Histogram equalization failed:', error);
+        dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage!.url });
+        showErrorMessage('ヒストグラム均等化の適用に失敗しました');
+      } finally {
+        setProcessingProgress('');
+        dispatch({ type: 'STOP_LOADING' });
+      }
+    }, 50);
   };
 
   const handleBlurParamChange = (key: keyof State['blurParams'], value: string) => {
@@ -1426,117 +1455,17 @@ function App() {
               >
                 💾 保存
               </button>
+              <button 
+                className="header-button reset-button" 
+                onClick={() => dispatch({type: 'RESET_PARAMS'})}
+                title="調整をリセット"
+                disabled={!state.originalImage}
+              >
+                🔄 リセット
+              </button>
             </>
           )}
           
-          {/* Image Processing Menu */}
-          <div className="dropdown-menu" ref={menuRef}>
-            <button 
-              className="header-button dropdown-trigger" 
-              onClick={() => setIsProcessMenuOpen(!isProcessMenuOpen)}
-              title="画像処理メニュー"
-              disabled={!state.originalImage}
-            >
-              🎨 画像処理 ▼
-            </button>
-            {isProcessMenuOpen && (
-              <div className="dropdown-content">
-                <button 
-                  className="dropdown-item" 
-                  onClick={() => {
-                    handleRotate(90);
-                    setIsProcessMenuOpen(false);
-                  }}
-                  title="90°回転"
-                >
-                  🔄 回転
-                </button>
-                <button 
-                  className="dropdown-item" 
-                  onClick={() => {
-                    handleFlipHorizontal();
-                    setIsProcessMenuOpen(false);
-                  }}
-                  title="水平反転"
-                >
-                  ↔️ 水平反転
-                </button>
-                <button 
-                  className="dropdown-item" 
-                  onClick={() => {
-                    handleFlipVertical();
-                    setIsProcessMenuOpen(false);
-                  }}
-                  title="垂直反転"
-                >
-                  ↕️ 垂直反転
-                </button>
-                <button 
-                  className="dropdown-item" 
-                  onClick={() => {
-                    handleCrop();
-                    setIsProcessMenuOpen(false);
-                  }}
-                  disabled={!crop?.width}
-                  title="トリミング実行"
-                >
-                  ✂️ トリミング
-                </button>
-                <div className="dropdown-divider"></div>
-                <button 
-                  className="dropdown-item" 
-                  onClick={() => {
-                    handleGrayscale();
-                    setIsProcessMenuOpen(false);
-                  }}
-                  title="グレースケール変換"
-                >
-                  ⬛ グレースケール
-                </button>
-                <button 
-                  className="dropdown-item" 
-                  onClick={() => {
-                    handleSepia();
-                    setIsProcessMenuOpen(false);
-                  }}
-                  title="セピア効果"
-                >
-                  🟤 セピア
-                </button>
-                <button 
-                  className="dropdown-item" 
-                  onClick={() => {
-                    handleEmboss();
-                    setIsProcessMenuOpen(false);
-                  }}
-                  title="エンボス効果（3D浮き出し）"
-                >
-                  🔳 エンボス
-                </button>
-                <button 
-                  className="dropdown-item" 
-                  onClick={() => {
-                    handleHistogramEqualization();
-                    setIsProcessMenuOpen(false);
-                  }}
-                  title="ヒストグラム均等化（自動コントラスト補正）"
-                >
-                  📊 ヒストグラム均等化
-                </button>
-                <div className="dropdown-divider"></div>
-                <button 
-                  className="dropdown-item reset-item" 
-                  onClick={() => {
-                    dispatch({type: 'RESET_PARAMS'});
-                    setIsProcessMenuOpen(false);
-                  }}
-                  title="調整をリセット"
-                >
-                  🔄 リセット
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
@@ -2201,6 +2130,81 @@ function App() {
               })}
             </div>
           </div>
+
+          {/* Transform and Effects Section */}
+          <div className="panel-group">
+            <div className="panel-header">
+              <h3>変換・エフェクト</h3>
+            </div>
+            <div className="panel-content">
+              <div className="effects-grid">
+                <button 
+                  className="effect-button"
+                  onClick={() => handleRotate(90)}
+                  title="90°回転"
+                  disabled={!state.originalImage}
+                >
+                  🔄 回転
+                </button>
+                <button 
+                  className="effect-button"
+                  onClick={handleFlipHorizontal}
+                  title="水平反転"
+                  disabled={!state.originalImage}
+                >
+                  ↔️ 水平反転
+                </button>
+                <button 
+                  className="effect-button"
+                  onClick={handleFlipVertical}
+                  title="垂直反転"
+                  disabled={!state.originalImage}
+                >
+                  ↕️ 垂直反転
+                </button>
+                <button 
+                  className="effect-button"
+                  onClick={handleCrop}
+                  disabled={!crop?.width}
+                  title="トリミング実行"
+                >
+                  ✂️ トリミング
+                </button>
+                <button 
+                  className="effect-button"
+                  onClick={handleGrayscale}
+                  title="グレースケール変換"
+                  disabled={!state.originalImage}
+                >
+                  ⬛ グレースケール
+                </button>
+                <button 
+                  className="effect-button"
+                  onClick={handleSepia}
+                  title="セピア効果"
+                  disabled={!state.originalImage}
+                >
+                  🟤 セピア
+                </button>
+                <button 
+                  className="effect-button"
+                  onClick={handleEmboss}
+                  title="エンボス効果（3D浮き出し）"
+                  disabled={!state.originalImage}
+                >
+                  🔳 エンボス
+                </button>
+                <button 
+                  className="effect-button"
+                  onClick={handleHistogramEqualization}
+                  title="ヒストグラム均等化（自動コントラスト補正）"
+                  disabled={!state.originalImage}
+                >
+                  📊 ヒストグラム均等化
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2230,13 +2234,15 @@ function App() {
       {/* Processing Overlay */}
       {(() => {
         const shouldShow = (state.isLoading || isWorkerProcessing) && state.originalImage;
-        console.log('Processing Overlay Decision:', {
-          shouldShow,
-          isLoading: state.isLoading,
-          isWorkerProcessing,
-          hasOriginalImage: !!state.originalImage,
-          originalImageUrl: state.originalImage?.url
-        });
+        if (Math.random() < 0.1) { // Reduce log frequency
+          console.log('Processing Overlay Decision:', {
+            shouldShow,
+            isLoading: state.isLoading,
+            isWorkerProcessing,
+            hasOriginalImage: !!state.originalImage,
+            originalImageUrl: state.originalImage?.url
+          });
+        }
         return shouldShow;
       })() && (
         <>
