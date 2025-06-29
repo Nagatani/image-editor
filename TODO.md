@@ -101,28 +101,28 @@ This document tracks the implementation progress of new features for the Rust/WA
   - [x] Add `adjust_curves(red_gamma, green_gamma, blue_gamma)` function in Rust
   - [x] Implement gamma-based curve UI component in React
   - [x] Test curve adjustments
-- [ ] **Levels Correction** - Black point, white point, gamma adjustment
-  - [ ] Add `adjust_levels(black: u8, white: u8, gamma: f32)` function in Rust
-  - [ ] Add levels control UI in React
-  - [ ] Test levels adjustment
+- [x] **Levels Correction** - Black point, white point, gamma adjustment
+  - [x] Add `adjust_levels(black: u8, white: u8, gamma: f32)` function in Rust
+  - [x] Add levels control UI in React
+  - [x] Test levels adjustment
 
 ### 3.2 Enhanced User Experience
-- [ ] **Preset System** - Save and load adjustment presets
-  - [ ] Design preset data structure
-  - [ ] Implement preset save functionality
-  - [ ] Implement preset load functionality
-  - [ ] Add preset UI components
-  - [ ] Test preset system
-- [ ] **Real-time Histogram Display** - Visual color distribution
-  - [ ] Add `calculate_histogram()` function in Rust
-  - [ ] Create histogram display component in React
-  - [ ] Update histogram in real-time
-  - [ ] Test histogram accuracy
-- [ ] **Advanced Image Save Options**
-  - [ ] Add JPEG quality selector
-  - [ ] Add PNG compression options
-  - [ ] Add WEBP format support
-  - [ ] Test various export formats
+- [x] **Preset System** - Save and load adjustment presets
+  - [x] Design preset data structure
+  - [x] Implement preset save functionality
+  - [x] Implement preset load functionality
+  - [x] Add preset UI components
+  - [x] Test preset system
+- [x] **Real-time Histogram Display** - Visual color distribution
+  - [x] Add `calculate_histogram()` function in Rust
+  - [x] Create histogram display component in React
+  - [x] Update histogram in real-time
+  - [x] Test histogram accuracy
+- [x] **Advanced Image Save Options**
+  - [x] Add JPEG quality selector
+  - [x] Add PNG compression options
+  - [x] Add WEBP format support
+  - [x] Test various export formats
 
 ## Technical Infrastructure Tasks
 
@@ -198,8 +198,8 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Status Tracking
 
 - **Total Features**: 27 major features
-- **Completed**: 19
+- **Completed**: 23
 - **In Progress**: 0
-- **Remaining**: 8
+- **Remaining**: 4
 
 Last Updated: [Current Date]

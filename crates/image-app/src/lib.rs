@@ -987,3 +987,112 @@ pub fn adjust_curves(image_data: &[u8], red_gamma: f32, green_gamma: f32, blue_g
     log("Color curves adjustment successful");
     to_bytes(&processed)
 }
+
+#[wasm_bindgen]
+pub fn adjust_levels(image_data: &[u8], black_point: u8, white_point: u8, gamma: f32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Levels correction function called");
+    
+    // Validate input parameters
+    if black_point >= white_point {
+        log("Invalid levels: black point must be less than white point");
+        return image_data.to_vec();
+    }
+    
+    if black_point == 0 && white_point == 255 && gamma == 1.0 {
+        log("No levels adjustment needed, returning original image");
+        return image_data.to_vec();
+    }
+    
+    // Convert to RGB8 format for pixel manipulation
+    let mut rgb_img = img.to_rgb8();
+    
+    // Create lookup table for levels adjustment
+    let mut lut = [0u8; 256];
+    
+    // Calculate the input range
+    let input_range = (white_point as f32) - (black_point as f32);
+    
+    // Clamp gamma to reasonable range to prevent extreme results
+    let gamma_clamped = gamma.clamp(0.1, 3.0);
+    
+    // Generate lookup table
+    for i in 0..256 {
+        let input_value = i as f32;
+        
+        // Step 1: Apply input levels (black and white point mapping)
+        let normalized = if input_value <= black_point as f32 {
+            0.0
+        } else if input_value >= white_point as f32 {
+            1.0
+        } else {
+            (input_value - black_point as f32) / input_range
+        };
+        
+        // Step 2: Apply gamma correction
+        let gamma_corrected = if gamma_clamped != 1.0 {
+            normalized.powf(1.0 / gamma_clamped)
+        } else {
+            normalized
+        };
+        
+        // Step 3: Map to output range (0-255)
+        let output_value = (gamma_corrected * 255.0).clamp(0.0, 255.0);
+        
+        lut[i] = output_value as u8;
+    }
+    
+    // Apply lookup table to each pixel
+    for pixel in rgb_img.pixels_mut() {
+        pixel[0] = lut[pixel[0] as usize];
+        pixel[1] = lut[pixel[1] as usize];
+        pixel[2] = lut[pixel[2] as usize];
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(rgb_img);
+    log("Levels correction successful");
+    to_bytes(&processed)
+}
+
+#[wasm_bindgen]
+pub fn calculate_histogram(image_data: &[u8]) -> Vec<u32> {
+    let img = load_image(image_data);
+    log("Calculate histogram function called");
+    
+    // Convert to RGB8 format for pixel analysis
+    let rgb_img = img.to_rgb8();
+    
+    // Initialize histograms for each channel (R, G, B)
+    let mut hist_r = [0u32; 256];
+    let mut hist_g = [0u32; 256];
+    let mut hist_b = [0u32; 256];
+    
+    // Count pixel values for each channel
+    for pixel in rgb_img.pixels() {
+        hist_r[pixel[0] as usize] += 1;
+        hist_g[pixel[1] as usize] += 1;
+        hist_b[pixel[2] as usize] += 1;
+    }
+    
+    // Combine all histograms into a single vector
+    // Format: [R0, R1, R2, ..., R255, G0, G1, G2, ..., G255, B0, B1, B2, ..., B255]
+    let mut result = Vec::with_capacity(768); // 256 * 3
+    
+    // Add Red channel histogram
+    for count in hist_r.iter() {
+        result.push(*count);
+    }
+    
+    // Add Green channel histogram
+    for count in hist_g.iter() {
+        result.push(*count);
+    }
+    
+    // Add Blue channel histogram
+    for count in hist_b.iter() {
+        result.push(*count);
+    }
+    
+    log("Histogram calculation successful");
+    result
+}

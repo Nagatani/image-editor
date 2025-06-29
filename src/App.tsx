@@ -5,6 +5,46 @@ import ReactCrop, { type Crop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
 // 状態管理のためのReducer
+type PresetData = {
+  name: string;
+  params: {
+    brightness: number;
+    contrast: number;
+    saturation: number;
+    temperature: number;
+    hue: number;
+    exposure: number;
+    vibrance: number;
+  };
+  blurParams: {
+    sigma: number;
+  };
+  sharpenParams: {
+    amount: number;
+  };
+  vignetteParams: {
+    strength: number;
+    radius: number;
+  };
+  noiseReductionParams: {
+    strength: number;
+  };
+  highlightShadowParams: {
+    highlights: number;
+    shadows: number;
+  };
+  curveParams: {
+    redGamma: number;
+    greenGamma: number;
+    blueGamma: number;
+  };
+  levelsParams: {
+    blackPoint: number;
+    whitePoint: number;
+    gamma: number;
+  };
+};
+
 type HistoryState = {
   originalImage: { data: Uint8Array, url: string } | null;
   processedImageUrl: string | null;
@@ -38,6 +78,11 @@ type HistoryState = {
     redGamma: number;
     greenGamma: number;
     blueGamma: number;
+  };
+  levelsParams: {
+    blackPoint: number;
+    whitePoint: number;
+    gamma: number;
   };
 };
 
@@ -81,6 +126,12 @@ type State = {
     greenGamma: number;
     blueGamma: number;
   };
+  levelsParams: {
+    blackPoint: number;
+    whitePoint: number;
+    gamma: number;
+  };
+  presets: PresetData[];
   history: HistoryState[];
   historyIndex: number;
 };
@@ -95,6 +146,11 @@ type Action =
   | { type: 'SET_NOISE_REDUCTION_PARAM'; payload: { key: keyof State['noiseReductionParams']; value: number } }
   | { type: 'SET_HIGHLIGHT_SHADOW_PARAM'; payload: { key: keyof State['highlightShadowParams']; value: number } }
   | { type: 'SET_CURVE_PARAM'; payload: { key: keyof State['curveParams']; value: number } }
+  | { type: 'SET_LEVELS_PARAM'; payload: { key: keyof State['levelsParams']; value: number } }
+  | { type: 'SAVE_PRESET'; payload: { name: string } }
+  | { type: 'LOAD_PRESET'; payload: { preset: PresetData } }
+  | { type: 'DELETE_PRESET'; payload: { index: number } }
+  | { type: 'SET_PRESETS'; payload: PresetData[] }
   | { type: 'START_LOADING' }
   | { type: 'SET_PROCESSED_IMAGE'; payload: string }
   | { type: 'RESET_PARAMS' }
@@ -114,6 +170,8 @@ const initialState: State = {
   noiseReductionParams: { strength: 0 },
   highlightShadowParams: { highlights: 0, shadows: 0 },
   curveParams: { redGamma: 1.0, greenGamma: 1.0, blueGamma: 1.0 },
+  levelsParams: { blackPoint: 0, whitePoint: 255, gamma: 1.0 },
+  presets: [],
   history: [],
   historyIndex: -1,
 };
@@ -144,6 +202,7 @@ function reducer(state: State, action: Action): State {
         noiseReductionParams: isCompletelyNewImage ? initialState.noiseReductionParams : state.noiseReductionParams,
         highlightShadowParams: isCompletelyNewImage ? initialState.highlightShadowParams : state.highlightShadowParams,
         curveParams: isCompletelyNewImage ? initialState.curveParams : state.curveParams,
+        levelsParams: isCompletelyNewImage ? initialState.levelsParams : state.levelsParams,
         // Reset history only for completely new images - DO NOT modify history for processed results
         history: isCompletelyNewImage ? [] : state.history,
         historyIndex: isCompletelyNewImage ? -1 : state.historyIndex
@@ -182,12 +241,49 @@ function reducer(state: State, action: Action): State {
       return { ...state, highlightShadowParams: { ...state.highlightShadowParams, [action.payload.key]: action.payload.value } };
     case 'SET_CURVE_PARAM':
       return { ...state, curveParams: { ...state.curveParams, [action.payload.key]: action.payload.value } };
+    case 'SET_LEVELS_PARAM':
+      return { ...state, levelsParams: { ...state.levelsParams, [action.payload.key]: action.payload.value } };
+    case 'SAVE_PRESET': {
+      const newPreset: PresetData = {
+        name: action.payload.name,
+        params: { ...state.params },
+        blurParams: { ...state.blurParams },
+        sharpenParams: { ...state.sharpenParams },
+        vignetteParams: { ...state.vignetteParams },
+        noiseReductionParams: { ...state.noiseReductionParams },
+        highlightShadowParams: { ...state.highlightShadowParams },
+        curveParams: { ...state.curveParams },
+        levelsParams: { ...state.levelsParams },
+      };
+      return { ...state, presets: [...state.presets, newPreset] };
+    }
+    case 'LOAD_PRESET': {
+      const preset = action.payload.preset;
+      return {
+        ...state,
+        params: { ...preset.params },
+        blurParams: { ...preset.blurParams },
+        sharpenParams: { ...preset.sharpenParams },
+        vignetteParams: { ...preset.vignetteParams },
+        noiseReductionParams: { ...preset.noiseReductionParams },
+        highlightShadowParams: { ...preset.highlightShadowParams },
+        curveParams: { ...preset.curveParams },
+        levelsParams: { ...preset.levelsParams },
+      };
+    }
+    case 'DELETE_PRESET': {
+      const newPresets = [...state.presets];
+      newPresets.splice(action.payload.index, 1);
+      return { ...state, presets: newPresets };
+    }
+    case 'SET_PRESETS':
+      return { ...state, presets: action.payload };
     case 'START_LOADING':
       return { ...state, isLoading: true };
     case 'SET_PROCESSED_IMAGE':
       return { ...state, isLoading: false, processedImageUrl: action.payload };
     case 'RESET_PARAMS':
-      return { ...state, params: initialState.params, blurParams: initialState.blurParams, sharpenParams: initialState.sharpenParams, vignetteParams: initialState.vignetteParams, noiseReductionParams: initialState.noiseReductionParams, highlightShadowParams: initialState.highlightShadowParams, curveParams: initialState.curveParams };
+      return { ...state, params: initialState.params, blurParams: initialState.blurParams, sharpenParams: initialState.sharpenParams, vignetteParams: initialState.vignetteParams, noiseReductionParams: initialState.noiseReductionParams, highlightShadowParams: initialState.highlightShadowParams, curveParams: initialState.curveParams, levelsParams: initialState.levelsParams };
     case 'SAVE_TO_HISTORY': {
       const currentHistoryState: HistoryState = {
         originalImage: state.originalImage,
@@ -199,6 +295,7 @@ function reducer(state: State, action: Action): State {
         noiseReductionParams: { ...state.noiseReductionParams },
         highlightShadowParams: { ...state.highlightShadowParams },
         curveParams: { ...state.curveParams },
+        levelsParams: { ...state.levelsParams },
       };
       
       console.log('SAVE_TO_HISTORY:', {
@@ -243,6 +340,7 @@ function reducer(state: State, action: Action): State {
         noiseReductionParams: { ...prevState.noiseReductionParams },
         highlightShadowParams: { ...prevState.highlightShadowParams },
         curveParams: { ...prevState.curveParams },
+        levelsParams: { ...prevState.levelsParams },
         historyIndex: state.historyIndex - 1,
       };
     }
@@ -266,6 +364,7 @@ function reducer(state: State, action: Action): State {
         noiseReductionParams: { ...nextState.noiseReductionParams },
         highlightShadowParams: { ...nextState.highlightShadowParams },
         curveParams: { ...nextState.curveParams },
+        levelsParams: { ...nextState.levelsParams },
         historyIndex: state.historyIndex + 1,
       };
     }
@@ -283,10 +382,13 @@ function App() {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveFileName, setSaveFileName] = useState('edited-image');
   const [saveFormat, setSaveFormat] = useState<'png' | 'jpeg' | 'webp' | 'avif'>('png');
+  const [saveQuality, setSaveQuality] = useState(90); // 0-100 for JPEG/WebP/AVIF
   const [supportedFormats, setSupportedFormats] = useState({
     webp: false,
     avif: false
   });
+  const [showPresetDialog, setShowPresetDialog] = useState(false);
+  const [presetName, setPresetName] = useState('');
   const imgRef = useRef<HTMLImageElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -295,6 +397,17 @@ function App() {
       setWasmReady(true);
       dispatch({ type: 'START_LOADING' });
     });
+    
+    // Load presets from localStorage
+    const savedPresets = localStorage.getItem('imageEditorPresets');
+    if (savedPresets) {
+      try {
+        const presets = JSON.parse(savedPresets);
+        dispatch({ type: 'SET_PRESETS', payload: presets });
+      } catch (error) {
+        console.error('Failed to load presets:', error);
+      }
+    }
     
     // Check browser support for WebP and AVIF
     const checkFormatSupport = async () => {
@@ -432,11 +545,16 @@ function App() {
         if (state.curveParams.redGamma !== 1.0 || state.curveParams.greenGamma !== 1.0 || state.curveParams.blueGamma !== 1.0) {
           imageData = wasm.adjust_curves(imageData, state.curveParams.redGamma, state.curveParams.greenGamma, state.curveParams.blueGamma);
         }
+        
+        // Apply levels correction if parameters are not default
+        if (state.levelsParams.blackPoint !== 0 || state.levelsParams.whitePoint !== 255 || state.levelsParams.gamma !== 1.0) {
+          imageData = wasm.adjust_levels(imageData, state.levelsParams.blackPoint, state.levelsParams.whitePoint, state.levelsParams.gamma);
+        }
 
         const url = URL.createObjectURL(new Blob([imageData]));
         dispatch({ type: 'SET_PROCESSED_IMAGE', payload: url });
     }, 50);
-  }, [state.originalImage, state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, state.highlightShadowParams, state.curveParams, isWasmReady]);
+  }, [state.originalImage, state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, state.highlightShadowParams, state.curveParams, state.levelsParams, isWasmReady]);
 
   useEffect(() => {
     if (state.originalImage) {
@@ -677,6 +795,45 @@ function App() {
     dispatch({ type: 'SET_CURVE_PARAM', payload: { key, value: Number(value) } });
   };
 
+  const handleLevelsParamChange = (key: keyof State['levelsParams'], value: string) => {
+    dispatch({ type: 'SET_LEVELS_PARAM', payload: { key, value: Number(value) } });
+  };
+
+  const handleSavePreset = () => {
+    if (!presetName.trim()) return;
+    dispatch({ type: 'SAVE_PRESET', payload: { name: presetName.trim() } });
+    
+    // Save to localStorage
+    const updatedPresets = [...state.presets, {
+      name: presetName.trim(),
+      params: { ...state.params },
+      blurParams: { ...state.blurParams },
+      sharpenParams: { ...state.sharpenParams },
+      vignetteParams: { ...state.vignetteParams },
+      noiseReductionParams: { ...state.noiseReductionParams },
+      highlightShadowParams: { ...state.highlightShadowParams },
+      curveParams: { ...state.curveParams },
+      levelsParams: { ...state.levelsParams },
+    }];
+    localStorage.setItem('imageEditorPresets', JSON.stringify(updatedPresets));
+    
+    setPresetName('');
+    setShowPresetDialog(false);
+  };
+
+  const handleLoadPreset = (preset: PresetData) => {
+    dispatch({ type: 'LOAD_PRESET', payload: { preset } });
+  };
+
+  const handleDeletePreset = (index: number) => {
+    dispatch({ type: 'DELETE_PRESET', payload: { index } });
+    
+    // Update localStorage
+    const updatedPresets = [...state.presets];
+    updatedPresets.splice(index, 1);
+    localStorage.setItem('imageEditorPresets', JSON.stringify(updatedPresets));
+  };
+
   const handleSaveImage = () => {
     if (!state.processedImageUrl || !saveFileName.trim()) return;
     
@@ -696,20 +853,20 @@ function App() {
       
       switch (saveFormat) {
         case 'jpeg':
-          quality = 0.9;
+          quality = saveQuality / 100; // Convert 0-100 to 0-1
           mimeType = 'image/jpeg';
           break;
         case 'webp':
-          quality = 0.9;
+          quality = saveQuality / 100; // Convert 0-100 to 0-1
           mimeType = 'image/webp';
           break;
         case 'avif':
-          quality = 0.8; // AVIF typically needs lower quality for good compression
+          quality = saveQuality / 100; // Convert 0-100 to 0-1
           mimeType = 'image/avif';
           break;
         case 'png':
         default:
-          quality = undefined;
+          quality = undefined; // PNG is lossless, no quality setting
           mimeType = 'image/png';
           break;
       }
@@ -1032,6 +1189,81 @@ function App() {
 
         {/* Right Panel - Adjustments */}
         <div className="right-panel">
+          <div className="panel-group">
+            <div className="panel-header">
+              <h3>プリセット</h3>
+            </div>
+            <div className="panel-content">
+              <button 
+                className="apply-rotation-button"
+                onClick={() => setShowPresetDialog(true)}
+                disabled={!state.originalImage}
+                style={{ marginBottom: '12px' }}
+              >
+                💾 現在の設定を保存
+              </button>
+              
+              {state.presets.length > 0 && (
+                <div style={{ marginBottom: '12px' }}>
+                  <label className="adjustment-label" style={{ marginBottom: '8px' }}>保存済みプリセット:</label>
+                  {state.presets.map((preset, index) => (
+                    <div key={index} style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      marginBottom: '6px',
+                      padding: '6px',
+                      background: '#1a1a1a',
+                      borderRadius: '3px',
+                      border: '1px solid #555'
+                    }}>
+                      <span style={{ 
+                        flex: 1, 
+                        fontSize: '11px', 
+                        color: '#cccccc',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {preset.name}
+                      </span>
+                      <button 
+                        onClick={() => handleLoadPreset(preset)}
+                        disabled={!state.originalImage}
+                        style={{
+                          background: '#4478c4',
+                          border: 'none',
+                          color: 'white',
+                          padding: '2px 6px',
+                          fontSize: '10px',
+                          borderRadius: '2px',
+                          marginRight: '4px',
+                          cursor: state.originalImage ? 'pointer' : 'not-allowed',
+                          opacity: state.originalImage ? 1 : 0.4
+                        }}
+                      >
+                        適用
+                      </button>
+                      <button 
+                        onClick={() => handleDeletePreset(index)}
+                        style={{
+                          background: '#ff6b6b',
+                          border: 'none',
+                          color: 'white',
+                          padding: '2px 6px',
+                          fontSize: '10px',
+                          borderRadius: '2px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        削除
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="panel-group">
             <div className="panel-header">
               <h3>回転</h3>
@@ -1418,6 +1650,85 @@ function App() {
 
           <div className="panel-group">
             <div className="panel-header">
+              <h3>レベル補正</h3>
+            </div>
+            <div className="panel-content">
+              <div className="adjustment-item">
+                <label className="adjustment-label">黒点 (Black Point)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={0} 
+                    max={254} 
+                    value={state.levelsParams.blackPoint} 
+                    onChange={(e) => handleLevelsParamChange('blackPoint', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.levelsParams.blackPoint} 
+                    onChange={(e) => handleLevelsParamChange('blackPoint', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={0}
+                    max={254}
+                  />
+                </div>
+              </div>
+              <div className="adjustment-item">
+                <label className="adjustment-label">白点 (White Point)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={1} 
+                    max={255} 
+                    value={state.levelsParams.whitePoint} 
+                    onChange={(e) => handleLevelsParamChange('whitePoint', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.levelsParams.whitePoint} 
+                    onChange={(e) => handleLevelsParamChange('whitePoint', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={1}
+                    max={255}
+                  />
+                </div>
+              </div>
+              <div className="adjustment-item">
+                <label className="adjustment-label">ガンマ (Gamma)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={0.1} 
+                    max={3.0} 
+                    step={0.1}
+                    value={state.levelsParams.gamma} 
+                    onChange={(e) => handleLevelsParamChange('gamma', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.levelsParams.gamma} 
+                    onChange={(e) => handleLevelsParamChange('gamma', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={0.1}
+                    max={3.0}
+                    step={0.1}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel-group">
+            <div className="panel-header">
               <h3>画像調整</h3>
             </div>
             <div className="panel-content">
@@ -1557,6 +1868,38 @@ function App() {
                   )}
                 </select>
               </div>
+              {/* Quality Setting - only for lossy formats */}
+              {(saveFormat === 'jpeg' || saveFormat === 'webp' || saveFormat === 'avif') && (
+                <div className="save-input-group">
+                  <label htmlFor="quality">品質: {saveQuality}%</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <input 
+                      id="quality"
+                      type="range" 
+                      min={1}
+                      max={100}
+                      value={saveQuality}
+                      onChange={(e) => setSaveQuality(Number(e.target.value))}
+                      className="adjustment-slider"
+                      style={{ flex: 1 }}
+                    />
+                    <input 
+                      type="number" 
+                      value={saveQuality}
+                      onChange={(e) => setSaveQuality(Number(e.target.value))}
+                      className="adjustment-input"
+                      min={1}
+                      max={100}
+                      style={{ width: '60px' }}
+                    />
+                  </div>
+                  <small style={{ color: '#999', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                    {saveFormat === 'jpeg' ? '高い値ほど高品質（ファイルサイズ大）' :
+                     saveFormat === 'webp' ? 'WebP: 90%以上推奨（高効率圧縮）' :
+                     'AVIF: 80%以上推奨（最新高効率圧縮）'}
+                  </small>
+                </div>
+              )}
             </div>
             <div className="save-dialog-footer">
               <button 
@@ -1569,6 +1912,57 @@ function App() {
                 className="save-button"
                 onClick={handleSaveImage}
                 disabled={!saveFileName.trim()}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Preset Save Dialog */}
+      {showPresetDialog && (
+        <div className="modal-overlay" onClick={() => setShowPresetDialog(false)}>
+          <div className="save-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="save-dialog-header">
+              <h3>プリセットを保存</h3>
+              <button 
+                className="close-button"
+                onClick={() => setShowPresetDialog(false)}
+                title="閉じる"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="save-dialog-content">
+              <div className="save-input-group">
+                <label htmlFor="presetName">プリセット名:</label>
+                <input 
+                  id="presetName"
+                  type="text" 
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  className="save-filename-input"
+                  placeholder="プリセット名を入力"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && presetName.trim()) {
+                      handleSavePreset();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            <div className="save-dialog-footer">
+              <button 
+                className="cancel-button"
+                onClick={() => setShowPresetDialog(false)}
+              >
+                キャンセル
+              </button>
+              <button 
+                className="save-button"
+                onClick={handleSavePreset}
+                disabled={!presetName.trim()}
               >
                 保存
               </button>
