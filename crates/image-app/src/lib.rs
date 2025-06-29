@@ -24,40 +24,55 @@ fn load_image(image_data: &[u8]) -> DynamicImage {
 #[wasm_bindgen]
 pub fn adjust_brightness(image_data: &[u8], value: i32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     let processed = img.brighten(value);
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn adjust_contrast(image_data: &[u8], value: f32) -> Vec<u8> {
     let img = load_image(image_data);
+    
+    
     let processed = img.adjust_contrast(value);
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn adjust_saturation(image_data: &[u8], value: f32) -> Vec<u8> {
     let img = load_image(image_data);
+    
+    
     let processed = img.huerotate(value as i32);
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn rotate(image_data: &[u8], angle: u32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     let processed = match angle {
         90 => img.rotate90(),
         180 => img.rotate180(),
         270 => img.rotate270(),
-        _ => img,
+        _ => {
+            log(&format!("Warning: Unsupported rotation angle {}, returning original image", angle));
+            img
+        },
     };
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn crop(image_data: &[u8], x: u32, y: u32, width: u32, height: u32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Crop function called");
+    
     
     if x + width > img.width() || y + height > img.height() {
         log("Error: Crop area is out of bounds.");
@@ -66,6 +81,7 @@ pub fn crop(image_data: &[u8], x: u32, y: u32, width: u32, height: u32) -> Vec<u
     
     let processed = img.crop_imm(x, y, width, height);
     log("Crop successful");
+    
     to_bytes(&processed)
 }
 
@@ -73,7 +89,9 @@ pub fn crop(image_data: &[u8], x: u32, y: u32, width: u32, height: u32) -> Vec<u
 #[wasm_bindgen]
 pub fn adjust_white_balance(image_data: &[u8], value: f32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("White balance adjustment function called");
+    
     
     if value == 0.0 {
         log("No white balance adjustment needed, returning original image");
@@ -91,22 +109,22 @@ pub fn adjust_white_balance(image_data: &[u8], value: f32) -> Vec<u8> {
         let g = pixel[1] as f32;
         let b = pixel[2] as f32;
         
-        let mut new_r = r;
-        let mut new_g = g;
-        let mut new_b = b;
-        
-        if factor > 0.0 {
+        let (new_r, new_g, new_b) = if factor > 0.0 {
             // 暖色に調整 (Make warmer - increase red/orange, decrease blue)
-            new_r = r + (50.0 * factor);
-            new_g = g + (20.0 * factor);  // Slightly increase green for natural orange tone
-            new_b = b - (40.0 * factor);
+            (
+                r + (50.0 * factor),
+                g + (20.0 * factor),  // Slightly increase green for natural orange tone
+                b - (40.0 * factor)
+            )
         } else {
             // 寒色に調整 (Make cooler - decrease red, increase blue)
             let abs_factor = factor.abs();
-            new_r = r - (40.0 * abs_factor);
-            new_g = g - (10.0 * abs_factor);  // Slightly decrease green
-            new_b = b + (50.0 * abs_factor);
-        }
+            (
+                r - (40.0 * abs_factor),
+                g - (10.0 * abs_factor),  // Slightly decrease green
+                b + (50.0 * abs_factor)
+            )
+        };
         
         pixel[0] = new_r.clamp(0.0, 255.0) as u8;
         pixel[1] = new_g.clamp(0.0, 255.0) as u8;
@@ -115,33 +133,40 @@ pub fn adjust_white_balance(image_data: &[u8], value: f32) -> Vec<u8> {
     
     let processed = image::DynamicImage::ImageRgb8(rgb_img);
     log("White balance adjustment successful");
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn flip_horizontal(image_data: &[u8]) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Flip horizontal function called");
     
     let processed = img.fliph();
     log("Horizontal flip successful");
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn flip_vertical(image_data: &[u8]) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Flip vertical function called");
     
     let processed = img.flipv();
     log("Vertical flip successful");
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn rotate_arbitrary(image_data: &[u8], angle: f32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Arbitrary rotation function called");
+    
     
     // Convert angle to radians
     let angle_rad = angle * std::f32::consts::PI / 180.0;
@@ -207,12 +232,14 @@ pub fn rotate_arbitrary(image_data: &[u8], angle: f32) -> Vec<u8> {
     };
     
     log("Arbitrary rotation successful");
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn resize(image_data: &[u8], width: u32, height: u32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Resize function called");
     
     if width == 0 || height == 0 {
@@ -220,24 +247,29 @@ pub fn resize(image_data: &[u8], width: u32, height: u32) -> Vec<u8> {
         return image_data.to_vec();
     }
     
+    
     let processed = img.resize(width, height, image::imageops::FilterType::Lanczos3);
     log("Resize successful");
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn to_grayscale(image_data: &[u8]) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Grayscale conversion function called");
     
     let processed = img.grayscale();
     log("Grayscale conversion successful");
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn apply_sepia(image_data: &[u8]) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Sepia effect function called");
     
     // Convert to RGB8 format first to ensure we can modify pixels
@@ -260,12 +292,14 @@ pub fn apply_sepia(image_data: &[u8]) -> Vec<u8> {
     
     let processed = image::DynamicImage::ImageRgb8(rgb_img);
     log("Sepia effect successful");
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn gaussian_blur(image_data: &[u8], sigma: f32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Gaussian blur function called");
     
     if sigma <= 0.0 {
@@ -275,12 +309,14 @@ pub fn gaussian_blur(image_data: &[u8], sigma: f32) -> Vec<u8> {
     
     let processed = img.blur(sigma);
     log("Gaussian blur successful");
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn sharpen(image_data: &[u8], amount: f32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Sharpen function called");
     
     if amount <= 0.0 {
@@ -304,9 +340,9 @@ pub fn sharpen(image_data: &[u8], amount: f32) -> Vec<u8> {
     
     for y in 1..height-1 {
         for x in 1..width-1 {
-            let mut r_sum = 0.0;
-            let mut g_sum = 0.0;
-            let mut b_sum = 0.0;
+            let mut r_sum: f32 = 0.0;
+            let mut g_sum: f32 = 0.0;
+            let mut b_sum: f32 = 0.0;
             
             // Apply kernel
             for ky in 0..3 {
@@ -342,13 +378,16 @@ pub fn sharpen(image_data: &[u8], amount: f32) -> Vec<u8> {
     
     let processed = image::DynamicImage::ImageRgb8(output);
     log("Sharpen successful");
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn adjust_hue(image_data: &[u8], shift: f32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Hue adjustment function called");
+    
     
     if shift == 0.0 {
         log("No hue shift needed, returning original image");
@@ -422,12 +461,14 @@ pub fn adjust_hue(image_data: &[u8], shift: f32) -> Vec<u8> {
     
     let processed = image::DynamicImage::ImageRgb8(rgb_img);
     log("Hue adjustment successful");
+    
     to_bytes(&processed)
 }
 
 #[wasm_bindgen]
 pub fn adjust_exposure(image_data: &[u8], stops: f32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Exposure adjustment function called");
     
     if stops == 0.0 {
@@ -465,6 +506,7 @@ pub fn adjust_exposure(image_data: &[u8], stops: f32) -> Vec<u8> {
 #[wasm_bindgen]
 pub fn adjust_vibrance(image_data: &[u8], amount: f32) -> Vec<u8> {
     let img = load_image(image_data);
+    
     log("Vibrance adjustment function called");
     
     if amount == 0.0 {
@@ -737,9 +779,9 @@ pub fn apply_emboss(image_data: &[u8]) -> Vec<u8> {
     // Apply emboss filter
     for y in 1..height-1 {
         for x in 1..width-1 {
-            let mut r_sum = 0.0;
-            let mut g_sum = 0.0;
-            let mut b_sum = 0.0;
+            let mut r_sum: f32 = 0.0;
+            let mut g_sum: f32 = 0.0;
+            let mut b_sum: f32 = 0.0;
             
             // Apply the 3x3 emboss kernel
             for ky in 0..3 {

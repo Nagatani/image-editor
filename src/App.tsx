@@ -1,4 +1,4 @@
-import { useState, useReducer, useEffect, useCallback, useRef } from 'react';
+import { useState, useReducer, useEffect, useCallback, useRef, useMemo } from 'react';
 import './App.css';
 import init, * as wasm from './pkg/image_app.js';
 import ReactCrop, { type Crop } from 'react-image-crop';
@@ -389,6 +389,12 @@ function App() {
   });
   const [showPresetDialog, setShowPresetDialog] = useState(false);
   const [presetName, setPresetName] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [showError, setShowError] = useState(false);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -468,16 +474,51 @@ function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif', 'image/bmp', 'image/tiff'];
+    if (!allowedTypes.includes(file.type)) {
+      showErrorMessage('サポートされていないファイル形式です。JPEG、PNG、WebP、AVIF、BMP、TIFFファイルをお選びください。');
+      return;
+    }
+
+    // Validate file size (max 50MB)
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxSize) {
+      showErrorMessage('ファイルサイズが大きすぎます。50MB以下のファイルをお選びください。');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
-      const data = new Uint8Array(event.target?.result as ArrayBuffer);
-      const url = URL.createObjectURL(new Blob([data]));
-      dispatch({ type: 'SET_IMAGE', payload: { data, url } });
-      // Save initial state to history after image load
-      setTimeout(() => {
-        dispatch({ type: 'SAVE_TO_HISTORY' });
-      }, 100);
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        
+        // Validate that we got data
+        if (!data || data.length === 0) {
+          showErrorMessage('ファイルの読み込みに失敗しました。ファイルが破損している可能性があります。');
+          return;
+        }
+        
+        const url = URL.createObjectURL(new Blob([data]));
+        dispatch({ type: 'SET_IMAGE', payload: { data, url } });
+        
+        // Save initial state to history after image load
+        setTimeout(() => {
+          dispatch({ type: 'SAVE_TO_HISTORY' });
+        }, 100);
+        
+        // Clear any previous errors
+        hideError();
+      } catch (error) {
+        console.error('File processing failed:', error);
+        showErrorMessage('ファイルの読み込み中にエラーが発生しました。');
+      }
     };
+    
+    reader.onerror = () => {
+      showErrorMessage('ファイルの読み込み中にエラーが発生しました。');
+    };
+    
     reader.readAsArrayBuffer(file);
   };
   
@@ -485,82 +526,145 @@ function App() {
       dispatch({ type: 'SET_PARAM', payload: { key, value: Number(value) } });
   }
 
+  // Error handling utility
+  const showErrorMessage = useCallback((message: string) => {
+    setErrorMessage(message);
+    setShowError(true);
+    
+    // Clear any existing error timeout
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+    }
+    
+    // Auto-hide error after 5 seconds
+    errorTimeoutRef.current = setTimeout(() => {
+      setShowError(false);
+      setErrorMessage('');
+    }, 5000);
+  }, []);
+
+  const hideError = useCallback(() => {
+    setShowError(false);
+    setErrorMessage('');
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+    }
+  }, []);
+
+  // Optimized processing queue to prioritize fast operations
+  const processImage = useCallback(async (imageData: Uint8Array): Promise<Uint8Array> => {
+    let processedData = imageData;
+    
+    // Step 1: Fast basic adjustments (processed immediately)
+    setProcessingProgress('基本調整を適用中...');
+    processedData = wasm.adjust_brightness(processedData, state.params.brightness);
+    processedData = wasm.adjust_contrast(processedData, state.params.contrast * 0.1);
+    processedData = wasm.adjust_saturation(processedData, state.params.saturation * 0.1);
+    processedData = wasm.adjust_white_balance(processedData, state.params.temperature);
+    
+    // Step 2: Color adjustments
+    if (state.params.hue !== 0) {
+      setProcessingProgress('色相調整を適用中...');
+      processedData = wasm.adjust_hue(processedData, state.params.hue);
+    }
+    
+    if (state.params.exposure !== 0) {
+      setProcessingProgress('露出調整を適用中...');
+      processedData = wasm.adjust_exposure(processedData, state.params.exposure);
+    }
+    
+    if (state.params.vibrance !== 0) {
+      setProcessingProgress('バイブランス調整を適用中...');
+      processedData = wasm.adjust_vibrance(processedData, state.params.vibrance);
+    }
+    
+    // Step 3: Advanced adjustments (potentially slower)
+    if (state.highlightShadowParams.highlights !== 0) {
+      setProcessingProgress('ハイライト調整を適用中...');
+      processedData = wasm.adjust_highlights(processedData, state.highlightShadowParams.highlights);
+    }
+    
+    if (state.highlightShadowParams.shadows !== 0) {
+      setProcessingProgress('シャドウ調整を適用中...');
+      processedData = wasm.adjust_shadows(processedData, state.highlightShadowParams.shadows);
+    }
+    
+    if (state.curveParams.redGamma !== 1.0 || state.curveParams.greenGamma !== 1.0 || state.curveParams.blueGamma !== 1.0) {
+      setProcessingProgress('カラーカーブを適用中...');
+      processedData = wasm.adjust_curves(processedData, state.curveParams.redGamma, state.curveParams.greenGamma, state.curveParams.blueGamma);
+    }
+    
+    if (state.levelsParams.blackPoint !== 0 || state.levelsParams.whitePoint !== 255 || state.levelsParams.gamma !== 1.0) {
+      setProcessingProgress('レベル補正を適用中...');
+      processedData = wasm.adjust_levels(processedData, state.levelsParams.blackPoint, state.levelsParams.whitePoint, state.levelsParams.gamma);
+    }
+    
+    // Step 4: Filters (often the slowest operations)
+    if (state.blurParams.sigma > 0) {
+      setProcessingProgress('ブラー効果を適用中...');
+      processedData = wasm.gaussian_blur(processedData, state.blurParams.sigma);
+    }
+    
+    if (state.sharpenParams.amount > 0) {
+      setProcessingProgress('シャープ効果を適用中...');
+      processedData = wasm.sharpen(processedData, state.sharpenParams.amount);
+    }
+    
+    if (state.vignetteParams.strength > 0) {
+      setProcessingProgress('ビネット効果を適用中...');
+      processedData = wasm.apply_vignette(processedData, state.vignetteParams.strength, state.vignetteParams.radius);
+    }
+    
+    if (state.noiseReductionParams.strength > 0) {
+      setProcessingProgress('ノイズ除去を適用中...');
+      processedData = wasm.reduce_noise(processedData, state.noiseReductionParams.strength);
+    }
+    
+    return processedData;
+  }, [state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, state.highlightShadowParams, state.curveParams, state.levelsParams]);
+
   const applyChanges = useCallback(() => {
-    if (!state.originalImage || !isWasmReady) return;
-    dispatch({ type: 'START_LOADING' });
-
-    setTimeout(() => {
-        let imageData = state.originalImage!.data;
-        imageData = wasm.adjust_brightness(imageData, state.params.brightness);
-        imageData = wasm.adjust_contrast(imageData, state.params.contrast * 0.1); // スケール調整
-        imageData = wasm.adjust_saturation(imageData, state.params.saturation * 0.1); // スケール調整
-        imageData = wasm.adjust_white_balance(imageData, state.params.temperature);
+    if (!state.originalImage || !isWasmReady || isProcessing) return;
+    
+    // Clear any existing debounce timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    
+    // Debounce rapid changes
+    debounceTimeoutRef.current = setTimeout(async () => {
+      setIsProcessing(true);
+      dispatch({ type: 'START_LOADING' });
+      setProcessingProgress('処理を開始中...');
+      
+      try {
+        const processedData = await processImage(state.originalImage!.data);
+        setProcessingProgress('画像を生成中...');
         
-        // Apply hue adjustment if shift != 0
-        if (state.params.hue !== 0) {
-          imageData = wasm.adjust_hue(imageData, state.params.hue);
-        }
-        
-        // Apply exposure adjustment if stops != 0
-        if (state.params.exposure !== 0) {
-          imageData = wasm.adjust_exposure(imageData, state.params.exposure);
-        }
-        
-        // Apply vibrance adjustment if amount != 0
-        if (state.params.vibrance !== 0) {
-          imageData = wasm.adjust_vibrance(imageData, state.params.vibrance);
-        }
-        
-        // Apply blur if sigma > 0
-        if (state.blurParams.sigma > 0) {
-          imageData = wasm.gaussian_blur(imageData, state.blurParams.sigma);
-        }
-        
-        // Apply sharpen if amount > 0
-        if (state.sharpenParams.amount > 0) {
-          imageData = wasm.sharpen(imageData, state.sharpenParams.amount);
-        }
-        
-        // Apply vignette if strength > 0
-        if (state.vignetteParams.strength > 0) {
-          imageData = wasm.apply_vignette(imageData, state.vignetteParams.strength, state.vignetteParams.radius);
-        }
-        
-        // Apply noise reduction if strength > 0
-        if (state.noiseReductionParams.strength > 0) {
-          imageData = wasm.reduce_noise(imageData, state.noiseReductionParams.strength);
-        }
-        
-        // Apply highlight adjustment if amount != 0
-        if (state.highlightShadowParams.highlights !== 0) {
-          imageData = wasm.adjust_highlights(imageData, state.highlightShadowParams.highlights);
-        }
-        
-        // Apply shadow adjustment if amount != 0
-        if (state.highlightShadowParams.shadows !== 0) {
-          imageData = wasm.adjust_shadows(imageData, state.highlightShadowParams.shadows);
-        }
-        
-        // Apply color curve adjustments if any gamma != 1.0
-        if (state.curveParams.redGamma !== 1.0 || state.curveParams.greenGamma !== 1.0 || state.curveParams.blueGamma !== 1.0) {
-          imageData = wasm.adjust_curves(imageData, state.curveParams.redGamma, state.curveParams.greenGamma, state.curveParams.blueGamma);
-        }
-        
-        // Apply levels correction if parameters are not default
-        if (state.levelsParams.blackPoint !== 0 || state.levelsParams.whitePoint !== 255 || state.levelsParams.gamma !== 1.0) {
-          imageData = wasm.adjust_levels(imageData, state.levelsParams.blackPoint, state.levelsParams.whitePoint, state.levelsParams.gamma);
-        }
-
-        const url = URL.createObjectURL(new Blob([imageData]));
+        const url = URL.createObjectURL(new Blob([processedData]));
         dispatch({ type: 'SET_PROCESSED_IMAGE', payload: url });
-    }, 50);
-  }, [state.originalImage, state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, state.highlightShadowParams, state.curveParams, state.levelsParams, isWasmReady]);
+        
+        // Clean up old blob URLs to prevent memory leaks
+        if (state.processedImageUrl && state.processedImageUrl !== state.originalImage!.url) {
+          URL.revokeObjectURL(state.processedImageUrl);
+        }
+      } catch (error) {
+        console.error('Image processing failed:', error);
+        const errorMsg = error instanceof Error ? error.message : '画像処理中に予期しないエラーが発生しました';
+        showErrorMessage(`画像処理エラー: ${errorMsg}`);
+        setProcessingProgress('');
+      } finally {
+        setIsProcessing(false);
+        setProcessingProgress('');
+      }
+    }, 150); // 150ms debounce
+  }, [state.originalImage, state.processedImageUrl, isWasmReady, isProcessing, processImage, showErrorMessage]);
 
   useEffect(() => {
     if (state.originalImage) {
       applyChanges();
     }
-  }, [state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, applyChanges]);
+  }, [state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, state.originalImage, applyChanges]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -576,18 +680,47 @@ function App() {
     };
   }, []);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Cancel any pending debounce operations
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      
+      // Clean up blob URLs to prevent memory leaks
+      if (state.processedImageUrl && state.processedImageUrl !== state.originalImage?.url) {
+        URL.revokeObjectURL(state.processedImageUrl);
+      }
+    };
+  }, [state.processedImageUrl, state.originalImage]);
+
 
   const handleRotate = (angle: 90 | 180 | 270) => {
-    if (!state.originalImage || !isWasmReady) return;
+    if (!state.originalImage || !isWasmReady || isProcessing) return;
+    
+    setIsProcessing(true);
+    setProcessingProgress(`${angle}度回転を適用中...`);
     saveToHistory(); // Save current state before modification
     dispatch({ type: 'START_LOADING' });
-    const rotated = wasm.rotate(state.originalImage.data, angle);
-    const url = URL.createObjectURL(new Blob([rotated]));
-    dispatch({type: 'SET_IMAGE', payload: {data: rotated, url}});
-    // Save state after operation for redo functionality
+    
     setTimeout(() => {
-      dispatch({ type: 'SAVE_TO_HISTORY' });
-    }, 100);
+      try {
+        const rotated = wasm.rotate(state.originalImage!.data, angle);
+        const url = URL.createObjectURL(new Blob([rotated]));
+        dispatch({type: 'SET_IMAGE', payload: {data: rotated, url}});
+        // Save state after operation for redo functionality
+        setTimeout(() => {
+          dispatch({ type: 'SAVE_TO_HISTORY' });
+        }, 100);
+      } catch (error) {
+        console.error('Rotation failed:', error);
+        setProcessingProgress('回転処理中にエラーが発生しました');
+      } finally {
+        setIsProcessing(false);
+        setProcessingProgress('');
+      }
+    }, 50);
   };
 
   const handleFlipHorizontal = () => {
@@ -1822,7 +1955,11 @@ function App() {
         </div>
       </div>
 
-      {state.isLoading && state.originalImage && <div className="processing-indicator">処理中...</div>}
+      {(state.isLoading || isProcessing) && state.originalImage && (
+        <div className="processing-indicator">
+          {processingProgress || '処理中...'}
+        </div>
+      )}
       
       {/* Save Dialog */}
       {showSaveDialog && (
@@ -1967,6 +2104,23 @@ function App() {
                 保存
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Toast */}
+      {showError && (
+        <div className="error-toast">
+          <div className="error-toast-content">
+            <span className="error-icon">⚠️</span>
+            <span className="error-text">{errorMessage}</span>
+            <button 
+              className="error-close"
+              onClick={hideError}
+              title="閉じる"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}
