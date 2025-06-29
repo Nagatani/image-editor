@@ -18,8 +18,9 @@ async function initializeWasm() {
   
   try {
     console.log('ImageWorker: Initializing WASM...');
-    // Import WASM module (adjust path as needed)
-    const wasmImport = await import('./src/pkg/image_app.js');
+    // Import WASM module (adjust path for GitHub Pages)
+    const basePath = self.location.origin.includes('github.io') ? '/image-editor' : '';
+    const wasmImport = await import(`${basePath}/src/pkg/image_app.js`);
     await wasmImport.default();
     wasmModule = wasmImport;
     isWasmInitialized = true;

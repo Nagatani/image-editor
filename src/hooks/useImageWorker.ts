@@ -59,7 +59,9 @@ export function useImageWorker() {
   useEffect(() => {
     const initializeWorker = () => {
       try {
-        const worker = new Worker('/imageWorker.js', { type: 'module' });
+        // Adjust worker path for GitHub Pages
+        const basePath = window.location.pathname.includes('/image-editor') ? '/image-editor' : '';
+        const worker = new Worker(`${basePath}/imageWorker.js`, { type: 'module' });
         
         worker.onmessage = (event) => {
           const { type, ...data } = event.data;
