@@ -713,3 +713,277 @@ pub fn reduce_noise(image_data: &[u8], strength: f32) -> Vec<u8> {
     log("Noise reduction successful");
     to_bytes(&processed)
 }
+
+#[wasm_bindgen]
+pub fn apply_emboss(image_data: &[u8]) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Emboss effect function called");
+    
+    // Convert to RGB8 format for pixel manipulation
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    
+    // Create output buffer
+    let mut output = image::ImageBuffer::new(width, height);
+    
+    // Emboss kernel - creates 3D raised effect
+    // This kernel emphasizes edges in a directional manner
+    let emboss_kernel = [
+        -2.0, -1.0,  0.0,
+        -1.0,  1.0,  1.0,
+         0.0,  1.0,  2.0
+    ];
+    
+    // Apply emboss filter
+    for y in 1..height-1 {
+        for x in 1..width-1 {
+            let mut r_sum = 0.0;
+            let mut g_sum = 0.0;
+            let mut b_sum = 0.0;
+            
+            // Apply the 3x3 emboss kernel
+            for ky in 0..3 {
+                for kx in 0..3 {
+                    let px = (x as i32 + kx as i32 - 1) as u32;
+                    let py = (y as i32 + ky as i32 - 1) as u32;
+                    let pixel = rgb_img.get_pixel(px, py);
+                    let weight = emboss_kernel[ky * 3 + kx];
+                    
+                    r_sum += pixel[0] as f32 * weight;
+                    g_sum += pixel[1] as f32 * weight;
+                    b_sum += pixel[2] as f32 * weight;
+                }
+            }
+            
+            // Add bias to center the values around middle gray (128)
+            // This prevents the image from being too dark
+            let bias = 128.0;
+            let embossed_r = (r_sum + bias).clamp(0.0, 255.0) as u8;
+            let embossed_g = (g_sum + bias).clamp(0.0, 255.0) as u8;
+            let embossed_b = (b_sum + bias).clamp(0.0, 255.0) as u8;
+            
+            output.put_pixel(x, y, image::Rgb([embossed_r, embossed_g, embossed_b]));
+        }
+    }
+    
+    // Handle edges by copying original pixels (or setting to gray)
+    for y in 0..height {
+        for x in 0..width {
+            if x == 0 || x == width-1 || y == 0 || y == height-1 {
+                // Set edge pixels to middle gray for consistent emboss effect
+                output.put_pixel(x, y, image::Rgb([128, 128, 128]));
+            }
+        }
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(output);
+    log("Emboss effect successful");
+    to_bytes(&processed)
+}
+
+#[wasm_bindgen]
+pub fn histogram_equalization(image_data: &[u8]) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Histogram equalization function called");
+    
+    // Convert to RGB8 format for pixel manipulation
+    let mut rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    let total_pixels = (width * height) as f32;
+    
+    // Calculate histogram for each channel
+    let mut hist_r = [0u32; 256];
+    let mut hist_g = [0u32; 256];
+    let mut hist_b = [0u32; 256];
+    
+    for pixel in rgb_img.pixels() {
+        hist_r[pixel[0] as usize] += 1;
+        hist_g[pixel[1] as usize] += 1;
+        hist_b[pixel[2] as usize] += 1;
+    }
+    
+    // Calculate cumulative distribution function (CDF) for each channel
+    let mut cdf_r = [0f32; 256];
+    let mut cdf_g = [0f32; 256];
+    let mut cdf_b = [0f32; 256];
+    
+    // Red channel CDF
+    cdf_r[0] = hist_r[0] as f32 / total_pixels;
+    for i in 1..256 {
+        cdf_r[i] = cdf_r[i - 1] + (hist_r[i] as f32 / total_pixels);
+    }
+    
+    // Green channel CDF
+    cdf_g[0] = hist_g[0] as f32 / total_pixels;
+    for i in 1..256 {
+        cdf_g[i] = cdf_g[i - 1] + (hist_g[i] as f32 / total_pixels);
+    }
+    
+    // Blue channel CDF
+    cdf_b[0] = hist_b[0] as f32 / total_pixels;
+    for i in 1..256 {
+        cdf_b[i] = cdf_b[i - 1] + (hist_b[i] as f32 / total_pixels);
+    }
+    
+    // Create lookup tables for histogram equalization
+    let mut lut_r = [0u8; 256];
+    let mut lut_g = [0u8; 256];
+    let mut lut_b = [0u8; 256];
+    
+    for i in 0..256 {
+        lut_r[i] = (cdf_r[i] * 255.0).round().clamp(0.0, 255.0) as u8;
+        lut_g[i] = (cdf_g[i] * 255.0).round().clamp(0.0, 255.0) as u8;
+        lut_b[i] = (cdf_b[i] * 255.0).round().clamp(0.0, 255.0) as u8;
+    }
+    
+    // Apply histogram equalization using lookup tables
+    for pixel in rgb_img.pixels_mut() {
+        pixel[0] = lut_r[pixel[0] as usize];
+        pixel[1] = lut_g[pixel[1] as usize];
+        pixel[2] = lut_b[pixel[2] as usize];
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(rgb_img);
+    log("Histogram equalization successful");
+    to_bytes(&processed)
+}
+
+#[wasm_bindgen]
+pub fn adjust_highlights(image_data: &[u8], amount: f32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Highlight adjustment function called");
+    
+    if amount == 0.0 {
+        log("No highlight adjustment needed, returning original image");
+        return image_data.to_vec();
+    }
+    
+    // Convert to RGB8 format for pixel manipulation
+    let mut rgb_img = img.to_rgb8();
+    
+    // Normalize amount to -1.0 to 1.0 range
+    let factor = amount / 100.0;
+    
+    for pixel in rgb_img.pixels_mut() {
+        let r = pixel[0] as f32 / 255.0;
+        let g = pixel[1] as f32 / 255.0;
+        let b = pixel[2] as f32 / 255.0;
+        
+        // Calculate luminance to determine if this is a highlight region
+        let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+        
+        // Only adjust pixels in highlight range (above 0.7 luminance)
+        if luminance > 0.7 {
+            // Calculate highlight mask (stronger effect for brighter pixels)
+            let highlight_mask = ((luminance - 0.7) / 0.3).clamp(0.0, 1.0);
+            
+            // Apply adjustment with mask
+            let adjustment = factor * highlight_mask;
+            
+            let new_r = (r + adjustment * (1.0 - r)).clamp(0.0, 1.0);
+            let new_g = (g + adjustment * (1.0 - g)).clamp(0.0, 1.0);
+            let new_b = (b + adjustment * (1.0 - b)).clamp(0.0, 1.0);
+            
+            pixel[0] = (new_r * 255.0) as u8;
+            pixel[1] = (new_g * 255.0) as u8;
+            pixel[2] = (new_b * 255.0) as u8;
+        }
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(rgb_img);
+    log("Highlight adjustment successful");
+    to_bytes(&processed)
+}
+
+#[wasm_bindgen]
+pub fn adjust_shadows(image_data: &[u8], amount: f32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Shadow adjustment function called");
+    
+    if amount == 0.0 {
+        log("No shadow adjustment needed, returning original image");
+        return image_data.to_vec();
+    }
+    
+    // Convert to RGB8 format for pixel manipulation
+    let mut rgb_img = img.to_rgb8();
+    
+    // Normalize amount to -1.0 to 1.0 range
+    let factor = amount / 100.0;
+    
+    for pixel in rgb_img.pixels_mut() {
+        let r = pixel[0] as f32 / 255.0;
+        let g = pixel[1] as f32 / 255.0;
+        let b = pixel[2] as f32 / 255.0;
+        
+        // Calculate luminance to determine if this is a shadow region
+        let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+        
+        // Only adjust pixels in shadow range (below 0.3 luminance)
+        if luminance < 0.3 {
+            // Calculate shadow mask (stronger effect for darker pixels)
+            let shadow_mask = (1.0 - (luminance / 0.3)).clamp(0.0, 1.0);
+            
+            // Apply adjustment with mask
+            let adjustment = factor * shadow_mask;
+            
+            let new_r = (r + adjustment * r).clamp(0.0, 1.0);
+            let new_g = (g + adjustment * g).clamp(0.0, 1.0);
+            let new_b = (b + adjustment * b).clamp(0.0, 1.0);
+            
+            pixel[0] = (new_r * 255.0) as u8;
+            pixel[1] = (new_g * 255.0) as u8;
+            pixel[2] = (new_b * 255.0) as u8;
+        }
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(rgb_img);
+    log("Shadow adjustment successful");
+    to_bytes(&processed)
+}
+
+#[wasm_bindgen]
+pub fn adjust_curves(image_data: &[u8], red_gamma: f32, green_gamma: f32, blue_gamma: f32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Color curves adjustment function called");
+    
+    if red_gamma == 1.0 && green_gamma == 1.0 && blue_gamma == 1.0 {
+        log("No curve adjustment needed, returning original image");
+        return image_data.to_vec();
+    }
+    
+    // Convert to RGB8 format for pixel manipulation
+    let mut rgb_img = img.to_rgb8();
+    
+    // Create lookup tables for each channel using gamma correction
+    let mut red_lut = [0u8; 256];
+    let mut green_lut = [0u8; 256];
+    let mut blue_lut = [0u8; 256];
+    
+    // Generate lookup tables with gamma correction
+    // Gamma values: < 1.0 = brighter mid-tones, > 1.0 = darker mid-tones
+    for i in 0..256 {
+        let normalized = i as f32 / 255.0;
+        
+        // Apply gamma correction: output = input^(1/gamma)
+        // Clamp gamma values to reasonable range to prevent extreme results
+        let red_gamma_clamped = red_gamma.clamp(0.1, 3.0);
+        let green_gamma_clamped = green_gamma.clamp(0.1, 3.0);
+        let blue_gamma_clamped = blue_gamma.clamp(0.1, 3.0);
+        
+        red_lut[i] = (normalized.powf(1.0 / red_gamma_clamped) * 255.0).clamp(0.0, 255.0) as u8;
+        green_lut[i] = (normalized.powf(1.0 / green_gamma_clamped) * 255.0).clamp(0.0, 255.0) as u8;
+        blue_lut[i] = (normalized.powf(1.0 / blue_gamma_clamped) * 255.0).clamp(0.0, 255.0) as u8;
+    }
+    
+    // Apply lookup tables to each pixel
+    for pixel in rgb_img.pixels_mut() {
+        pixel[0] = red_lut[pixel[0] as usize];
+        pixel[1] = green_lut[pixel[1] as usize];
+        pixel[2] = blue_lut[pixel[2] as usize];
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(rgb_img);
+    log("Color curves adjustment successful");
+    to_bytes(&processed)
+}

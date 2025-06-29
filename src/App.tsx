@@ -30,6 +30,15 @@ type HistoryState = {
   noiseReductionParams: {
     strength: number;
   };
+  highlightShadowParams: {
+    highlights: number;
+    shadows: number;
+  };
+  curveParams: {
+    redGamma: number;
+    greenGamma: number;
+    blueGamma: number;
+  };
 };
 
 type State = {
@@ -63,6 +72,15 @@ type State = {
   noiseReductionParams: {
     strength: number;
   };
+  highlightShadowParams: {
+    highlights: number;
+    shadows: number;
+  };
+  curveParams: {
+    redGamma: number;
+    greenGamma: number;
+    blueGamma: number;
+  };
   history: HistoryState[];
   historyIndex: number;
 };
@@ -75,6 +93,8 @@ type Action =
   | { type: 'SET_SHARPEN_PARAM'; payload: { key: keyof State['sharpenParams']; value: number } }
   | { type: 'SET_VIGNETTE_PARAM'; payload: { key: keyof State['vignetteParams']; value: number } }
   | { type: 'SET_NOISE_REDUCTION_PARAM'; payload: { key: keyof State['noiseReductionParams']; value: number } }
+  | { type: 'SET_HIGHLIGHT_SHADOW_PARAM'; payload: { key: keyof State['highlightShadowParams']; value: number } }
+  | { type: 'SET_CURVE_PARAM'; payload: { key: keyof State['curveParams']; value: number } }
   | { type: 'START_LOADING' }
   | { type: 'SET_PROCESSED_IMAGE'; payload: string }
   | { type: 'RESET_PARAMS' }
@@ -92,6 +112,8 @@ const initialState: State = {
   sharpenParams: { amount: 0 },
   vignetteParams: { strength: 0, radius: 50 },
   noiseReductionParams: { strength: 0 },
+  highlightShadowParams: { highlights: 0, shadows: 0 },
+  curveParams: { redGamma: 1.0, greenGamma: 1.0, blueGamma: 1.0 },
   history: [],
   historyIndex: -1,
 };
@@ -118,6 +140,10 @@ function reducer(state: State, action: Action): State {
         params: isCompletelyNewImage ? initialState.params : state.params,
         blurParams: isCompletelyNewImage ? initialState.blurParams : state.blurParams,
         sharpenParams: isCompletelyNewImage ? initialState.sharpenParams : state.sharpenParams,
+        vignetteParams: isCompletelyNewImage ? initialState.vignetteParams : state.vignetteParams,
+        noiseReductionParams: isCompletelyNewImage ? initialState.noiseReductionParams : state.noiseReductionParams,
+        highlightShadowParams: isCompletelyNewImage ? initialState.highlightShadowParams : state.highlightShadowParams,
+        curveParams: isCompletelyNewImage ? initialState.curveParams : state.curveParams,
         // Reset history only for completely new images - DO NOT modify history for processed results
         history: isCompletelyNewImage ? [] : state.history,
         historyIndex: isCompletelyNewImage ? -1 : state.historyIndex
@@ -152,12 +178,16 @@ function reducer(state: State, action: Action): State {
       return { ...state, vignetteParams: { ...state.vignetteParams, [action.payload.key]: action.payload.value } };
     case 'SET_NOISE_REDUCTION_PARAM':
       return { ...state, noiseReductionParams: { ...state.noiseReductionParams, [action.payload.key]: action.payload.value } };
+    case 'SET_HIGHLIGHT_SHADOW_PARAM':
+      return { ...state, highlightShadowParams: { ...state.highlightShadowParams, [action.payload.key]: action.payload.value } };
+    case 'SET_CURVE_PARAM':
+      return { ...state, curveParams: { ...state.curveParams, [action.payload.key]: action.payload.value } };
     case 'START_LOADING':
       return { ...state, isLoading: true };
     case 'SET_PROCESSED_IMAGE':
       return { ...state, isLoading: false, processedImageUrl: action.payload };
     case 'RESET_PARAMS':
-      return { ...state, params: initialState.params, blurParams: initialState.blurParams, sharpenParams: initialState.sharpenParams, vignetteParams: initialState.vignetteParams, noiseReductionParams: initialState.noiseReductionParams };
+      return { ...state, params: initialState.params, blurParams: initialState.blurParams, sharpenParams: initialState.sharpenParams, vignetteParams: initialState.vignetteParams, noiseReductionParams: initialState.noiseReductionParams, highlightShadowParams: initialState.highlightShadowParams, curveParams: initialState.curveParams };
     case 'SAVE_TO_HISTORY': {
       const currentHistoryState: HistoryState = {
         originalImage: state.originalImage,
@@ -167,6 +197,8 @@ function reducer(state: State, action: Action): State {
         sharpenParams: { ...state.sharpenParams },
         vignetteParams: { ...state.vignetteParams },
         noiseReductionParams: { ...state.noiseReductionParams },
+        highlightShadowParams: { ...state.highlightShadowParams },
+        curveParams: { ...state.curveParams },
       };
       
       console.log('SAVE_TO_HISTORY:', {
@@ -209,6 +241,8 @@ function reducer(state: State, action: Action): State {
         sharpenParams: { ...prevState.sharpenParams },
         vignetteParams: { ...prevState.vignetteParams },
         noiseReductionParams: { ...prevState.noiseReductionParams },
+        highlightShadowParams: { ...prevState.highlightShadowParams },
+        curveParams: { ...prevState.curveParams },
         historyIndex: state.historyIndex - 1,
       };
     }
@@ -230,6 +264,8 @@ function reducer(state: State, action: Action): State {
         sharpenParams: { ...nextState.sharpenParams },
         vignetteParams: { ...nextState.vignetteParams },
         noiseReductionParams: { ...nextState.noiseReductionParams },
+        highlightShadowParams: { ...nextState.highlightShadowParams },
+        curveParams: { ...nextState.curveParams },
         historyIndex: state.historyIndex + 1,
       };
     }
@@ -381,11 +417,26 @@ function App() {
         if (state.noiseReductionParams.strength > 0) {
           imageData = wasm.reduce_noise(imageData, state.noiseReductionParams.strength);
         }
+        
+        // Apply highlight adjustment if amount != 0
+        if (state.highlightShadowParams.highlights !== 0) {
+          imageData = wasm.adjust_highlights(imageData, state.highlightShadowParams.highlights);
+        }
+        
+        // Apply shadow adjustment if amount != 0
+        if (state.highlightShadowParams.shadows !== 0) {
+          imageData = wasm.adjust_shadows(imageData, state.highlightShadowParams.shadows);
+        }
+        
+        // Apply color curve adjustments if any gamma != 1.0
+        if (state.curveParams.redGamma !== 1.0 || state.curveParams.greenGamma !== 1.0 || state.curveParams.blueGamma !== 1.0) {
+          imageData = wasm.adjust_curves(imageData, state.curveParams.redGamma, state.curveParams.greenGamma, state.curveParams.blueGamma);
+        }
 
         const url = URL.createObjectURL(new Blob([imageData]));
         dispatch({ type: 'SET_PROCESSED_IMAGE', payload: url });
     }, 50);
-  }, [state.originalImage, state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, isWasmReady]);
+  }, [state.originalImage, state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, state.highlightShadowParams, state.curveParams, isWasmReady]);
 
   useEffect(() => {
     if (state.originalImage) {
@@ -562,6 +613,46 @@ function App() {
     }
   };
 
+  const handleEmboss = () => {
+    if (!state.originalImage || !isWasmReady) return;
+    saveToHistory(); // Save current state before modification
+    dispatch({ type: 'START_LOADING' });
+    
+    try {
+      const embossed = wasm.apply_emboss(state.originalImage.data);
+      console.log('Emboss result length:', embossed.length);
+      const url = URL.createObjectURL(new Blob([embossed]));
+      dispatch({type: 'SET_IMAGE', payload: {data: embossed, url}});
+      // Save state after operation for redo functionality
+      setTimeout(() => {
+        dispatch({ type: 'SAVE_TO_HISTORY' });
+      }, 100);
+    } catch (error) {
+      console.error('Emboss failed:', error);
+      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
+    }
+  };
+
+  const handleHistogramEqualization = () => {
+    if (!state.originalImage || !isWasmReady) return;
+    saveToHistory(); // Save current state before modification
+    dispatch({ type: 'START_LOADING' });
+    
+    try {
+      const equalized = wasm.histogram_equalization(state.originalImage.data);
+      console.log('Histogram equalization result length:', equalized.length);
+      const url = URL.createObjectURL(new Blob([equalized]));
+      dispatch({type: 'SET_IMAGE', payload: {data: equalized, url}});
+      // Save state after operation for redo functionality
+      setTimeout(() => {
+        dispatch({ type: 'SAVE_TO_HISTORY' });
+      }, 100);
+    } catch (error) {
+      console.error('Histogram equalization failed:', error);
+      dispatch({ type: 'SET_PROCESSED_IMAGE', payload: state.originalImage.url });
+    }
+  };
+
   const handleBlurParamChange = (key: keyof State['blurParams'], value: string) => {
     dispatch({ type: 'SET_BLUR_PARAM', payload: { key, value: Number(value) } });
   };
@@ -576,6 +667,14 @@ function App() {
 
   const handleNoiseReductionParamChange = (key: keyof State['noiseReductionParams'], value: string) => {
     dispatch({ type: 'SET_NOISE_REDUCTION_PARAM', payload: { key, value: Number(value) } });
+  };
+
+  const handleHighlightShadowParamChange = (key: keyof State['highlightShadowParams'], value: string) => {
+    dispatch({ type: 'SET_HIGHLIGHT_SHADOW_PARAM', payload: { key, value: Number(value) } });
+  };
+
+  const handleCurveParamChange = (key: keyof State['curveParams'], value: string) => {
+    dispatch({ type: 'SET_CURVE_PARAM', payload: { key, value: Number(value) } });
   };
 
   const handleSaveImage = () => {
@@ -857,6 +956,26 @@ function App() {
                   title="セピア効果"
                 >
                   🟤 セピア
+                </button>
+                <button 
+                  className="dropdown-item" 
+                  onClick={() => {
+                    handleEmboss();
+                    setIsProcessMenuOpen(false);
+                  }}
+                  title="エンボス効果（3D浮き出し）"
+                >
+                  🔳 エンボス
+                </button>
+                <button 
+                  className="dropdown-item" 
+                  onClick={() => {
+                    handleHistogramEqualization();
+                    setIsProcessMenuOpen(false);
+                  }}
+                  title="ヒストグラム均等化（自動コントラスト補正）"
+                >
+                  📊 ヒストグラム均等化
                 </button>
                 <div className="dropdown-divider"></div>
                 <button 
@@ -1154,6 +1273,143 @@ function App() {
                     disabled={!state.originalImage}
                     min={0}
                     max={100}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel-group">
+            <div className="panel-header">
+              <h3>ハイライト・シャドウ</h3>
+            </div>
+            <div className="panel-content">
+              <div className="adjustment-item">
+                <label className="adjustment-label">ハイライト (Highlights)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={-100} 
+                    max={100} 
+                    value={state.highlightShadowParams.highlights} 
+                    onChange={(e) => handleHighlightShadowParamChange('highlights', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.highlightShadowParams.highlights} 
+                    onChange={(e) => handleHighlightShadowParamChange('highlights', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={-100}
+                    max={100}
+                  />
+                </div>
+              </div>
+              <div className="adjustment-item">
+                <label className="adjustment-label">シャドウ (Shadows)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={-100} 
+                    max={100} 
+                    value={state.highlightShadowParams.shadows} 
+                    onChange={(e) => handleHighlightShadowParamChange('shadows', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.highlightShadowParams.shadows} 
+                    onChange={(e) => handleHighlightShadowParamChange('shadows', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={-100}
+                    max={100}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel-group">
+            <div className="panel-header">
+              <h3>カラーカーブ</h3>
+            </div>
+            <div className="panel-content">
+              <div className="adjustment-item">
+                <label className="adjustment-label">赤チャンネル (Red Gamma)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={0.1} 
+                    max={3.0} 
+                    step={0.1}
+                    value={state.curveParams.redGamma} 
+                    onChange={(e) => handleCurveParamChange('redGamma', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.curveParams.redGamma} 
+                    onChange={(e) => handleCurveParamChange('redGamma', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={0.1}
+                    max={3.0}
+                    step={0.1}
+                  />
+                </div>
+              </div>
+              <div className="adjustment-item">
+                <label className="adjustment-label">緑チャンネル (Green Gamma)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={0.1} 
+                    max={3.0} 
+                    step={0.1}
+                    value={state.curveParams.greenGamma} 
+                    onChange={(e) => handleCurveParamChange('greenGamma', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.curveParams.greenGamma} 
+                    onChange={(e) => handleCurveParamChange('greenGamma', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={0.1}
+                    max={3.0}
+                    step={0.1}
+                  />
+                </div>
+              </div>
+              <div className="adjustment-item">
+                <label className="adjustment-label">青チャンネル (Blue Gamma)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={0.1} 
+                    max={3.0} 
+                    step={0.1}
+                    value={state.curveParams.blueGamma} 
+                    onChange={(e) => handleCurveParamChange('blueGamma', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.curveParams.blueGamma} 
+                    onChange={(e) => handleCurveParamChange('blueGamma', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={0.1}
+                    max={3.0}
+                    step={0.1}
                   />
                 </div>
               </div>

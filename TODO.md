@@ -66,11 +66,11 @@ This document tracks the implementation progress of new features for the Rust/WA
   - [x] Add `adjust_exposure(stops: f32)` function in Rust
   - [x] Add exposure slider in React UI
   - [x] Test implementation
-- [ ] **Highlight/Shadow Adjustment** - Separate light/dark area control
-  - [ ] Add `adjust_highlights(amount: f32)` function in Rust
-  - [ ] Add `adjust_shadows(amount: f32)` function in Rust
-  - [ ] Add highlight/shadow sliders in React UI
-  - [ ] Test implementation
+- [x] **Highlight/Shadow Adjustment** - Separate light/dark area control
+  - [x] Add `adjust_highlights(amount: f32)` function in Rust
+  - [x] Add `adjust_shadows(amount: f32)` function in Rust
+  - [x] Add highlight/shadow sliders in React UI
+  - [x] Test implementation
 - [x] **Vibrance** - Natural saturation enhancement
   - [x] Add `adjust_vibrance(amount: f32)` function in Rust
   - [x] Add vibrance slider in React UI
@@ -93,14 +93,14 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Phase 3: Advanced Features
 
 ### 3.1 Professional Tools
-- [ ] **Histogram Equalization** - Automatic contrast correction
-  - [ ] Add `histogram_equalization()` function in Rust
-  - [ ] Add auto-enhance button in React UI
-  - [ ] Test implementation
-- [ ] **Color Curves** - Individual RGB channel adjustment
-  - [ ] Add `adjust_curves(red_curve, green_curve, blue_curve)` function in Rust
-  - [ ] Implement curve editor UI component in React
-  - [ ] Test curve adjustments
+- [x] **Histogram Equalization** - Automatic contrast correction
+  - [x] Add `histogram_equalization()` function in Rust
+  - [x] Add auto-enhance button in React UI
+  - [x] Test implementation
+- [x] **Color Curves** - Individual RGB channel adjustment
+  - [x] Add `adjust_curves(red_gamma, green_gamma, blue_gamma)` function in Rust
+  - [x] Implement gamma-based curve UI component in React
+  - [x] Test curve adjustments
 - [ ] **Levels Correction** - Black point, white point, gamma adjustment
   - [ ] Add `adjust_levels(black: u8, white: u8, gamma: f32)` function in Rust
   - [ ] Add levels control UI in React
@@ -198,8 +198,8 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Status Tracking
 
 - **Total Features**: 27 major features
-- **Completed**: 15
+- **Completed**: 19
 - **In Progress**: 0
-- **Remaining**: 17
+- **Remaining**: 8
 
 Last Updated: [Current Date]
