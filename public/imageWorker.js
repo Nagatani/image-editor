@@ -17,17 +17,20 @@ async function initializeWasm() {
   if (isWasmInitialized) return;
   
   try {
+    console.log('ImageWorker: Initializing WASM...');
     // Import WASM module (adjust path as needed)
-    const wasmImport = await import('./assets/image_app.js');
+    const wasmImport = await import('./src/pkg/image_app.js');
     await wasmImport.default();
     wasmModule = wasmImport;
     isWasmInitialized = true;
     
+    console.log('ImageWorker: WASM initialized successfully');
     self.postMessage({
       type: 'WASM_INITIALIZED',
       success: true
     });
   } catch (error) {
+    console.error('ImageWorker: WASM initialization failed:', error);
     self.postMessage({
       type: 'WASM_INITIALIZATION_ERROR',
       error: error.message
@@ -325,7 +328,7 @@ self.onmessage = async function(event) {
   }
 };
 
-// Initialize on load
-self.addEventListener('load', () => {
-  self.postMessage({ type: 'WORKER_READY' });
-});
+// Initialize immediately
+console.log('ImageWorker: Starting up...');
+self.postMessage({ type: 'WORKER_READY' });
+console.log('ImageWorker: Ready message sent');

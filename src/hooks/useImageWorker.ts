@@ -48,6 +48,7 @@ export function useImageWorker() {
   const workerRef = useRef<Worker | null>(null);
   const [isWorkerReady, setIsWorkerReady] = useState(false);
   const [isWasmInitialized, setIsWasmInitialized] = useState(false);
+  const [currentProgress, setCurrentProgress] = useState<ProcessingProgress | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
   const processingCallbackRef = useRef<ProcessingCallback | null>(null);
   const progressCallbackRef = useRef<ProgressCallback | null>(null);
@@ -87,20 +88,27 @@ export function useImageWorker() {
               break;
               
             case 'PROCESSING_PROGRESS':
-              if (progressCallbackRef.current && data.taskId === currentTaskIdRef.current) {
-                progressCallbackRef.current({
+              if (data.taskId === currentTaskIdRef.current) {
+                const progressData = {
                   progress: data.progress,
                   message: data.message
-                });
+                };
+                setCurrentProgress(progressData);
+                if (progressCallbackRef.current) {
+                  progressCallbackRef.current(progressData);
+                }
               }
               break;
               
             case 'PROCESSING_COMPLETE':
-              if (processingCallbackRef.current && data.taskId === currentTaskIdRef.current) {
-                processingCallbackRef.current({
-                  success: true,
-                  data: data.result
-                });
+              if (data.taskId === currentTaskIdRef.current) {
+                setCurrentProgress(null);
+                if (processingCallbackRef.current) {
+                  processingCallbackRef.current({
+                    success: true,
+                    data: data.result
+                  });
+                }
                 currentTaskIdRef.current = null;
                 processingCallbackRef.current = null;
                 progressCallbackRef.current = null;
@@ -108,11 +116,14 @@ export function useImageWorker() {
               break;
               
             case 'PROCESSING_ERROR':
-              if (processingCallbackRef.current && data.taskId === currentTaskIdRef.current) {
-                processingCallbackRef.current({
-                  success: false,
-                  error: data.error
-                });
+              if (data.taskId === currentTaskIdRef.current) {
+                setCurrentProgress(null);
+                if (processingCallbackRef.current) {
+                  processingCallbackRef.current({
+                    success: false,
+                    error: data.error
+                  });
+                }
                 currentTaskIdRef.current = null;
                 processingCallbackRef.current = null;
                 progressCallbackRef.current = null;
@@ -121,6 +132,7 @@ export function useImageWorker() {
               
             case 'TASK_CANCELLED':
               if (data.taskId === currentTaskIdRef.current) {
+                setCurrentProgress(null);
                 currentTaskIdRef.current = null;
                 processingCallbackRef.current = null;
                 progressCallbackRef.current = null;
@@ -232,6 +244,7 @@ export function useImageWorker() {
     isReady,
     isProcessing,
     isWorkerReady,
-    isWasmInitialized
+    isWasmInitialized,
+    currentProgress
   };
 }
