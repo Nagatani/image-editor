@@ -39,6 +39,15 @@ jobs:
     - name: Build project
       run: npm run build
 
+    - name: Debug build output
+      run: |
+        echo "=== Checking dist directory ==="
+        ls -la dist/
+        echo "=== Checking dist/assets directory ==="
+        ls -la dist/assets/ || echo "assets directory not found"
+        echo "=== Checking for WASM files ==="
+        find dist/ -name "*.wasm" -o -name "*image_app*" || echo "No WASM files found"
+
     - name: Setup Pages
       uses: actions/configure-pages@v4
 
