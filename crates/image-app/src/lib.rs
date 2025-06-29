@@ -28,32 +28,6 @@ use std::io::Cursor;
 
 // Optimized memory management and processing utilities
 mod optimization {
-    
-    /// Pre-computed lookup table for faster gamma correction
-    pub struct GammaLUT {
-        pub table: [u8; 256],
-    }
-    
-    impl GammaLUT {
-        pub fn new(gamma: f32) -> Self {
-            let mut table = [0u8; 256];
-            let inv_gamma = 1.0 / gamma;
-            
-            for i in 0..256 {
-                let normalized = (i as f32) / 255.0;
-                let corrected = normalized.powf(inv_gamma);
-                table[i] = (corrected * 255.0).clamp(0.0, 255.0) as u8;
-            }
-            
-            GammaLUT { table }
-        }
-        
-        #[inline(always)]
-        pub fn apply(&self, value: u8) -> u8 {
-            unsafe { *self.table.get_unchecked(value as usize) }
-        }
-    }
-    
     /// Optimized pixel processing with chunked operations
     pub fn process_pixels_chunked<F>(data: &mut [u8], mut processor: F) 
     where 
@@ -72,14 +46,6 @@ mod optimization {
         if !remainder.is_empty() {
             processor(remainder);
         }
-    }
-    
-    /// Fast integer clamp operation
-    #[inline(always)]
-    pub fn fast_clamp_u8(value: i32) -> u8 {
-        if value < 0 { 0 }
-        else if value > 255 { 255 }
-        else { value as u8 }
     }
     
     /// Optimized RGB to grayscale conversion with fixed-point arithmetic
