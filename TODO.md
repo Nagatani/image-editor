@@ -58,14 +58,14 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Phase 2: Intermediate Features
 
 ### 2.1 Extended Color Adjustments
-- [ ] **Hue Adjustment** - Change color tones
-  - [ ] Add `adjust_hue(shift: f32)` function in Rust
-  - [ ] Add hue slider in React UI (-180 to +180 degrees)
-  - [ ] Test implementation
-- [ ] **Exposure Adjustment** - Photo brightness correction
-  - [ ] Add `adjust_exposure(stops: f32)` function in Rust
-  - [ ] Add exposure slider in React UI
-  - [ ] Test implementation
+- [x] **Hue Adjustment** - Change color tones
+  - [x] Add `adjust_hue(shift: f32)` function in Rust
+  - [x] Add hue slider in React UI (-180 to +180 degrees)
+  - [x] Test implementation
+- [x] **Exposure Adjustment** - Photo brightness correction
+  - [x] Add `adjust_exposure(stops: f32)` function in Rust
+  - [x] Add exposure slider in React UI
+  - [x] Test implementation
 - [ ] **Highlight/Shadow Adjustment** - Separate light/dark area control
   - [ ] Add `adjust_highlights(amount: f32)` function in Rust
   - [ ] Add `adjust_shadows(amount: f32)` function in Rust
@@ -198,7 +198,7 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Status Tracking
 
 - **Total Features**: 27 major features
-- **Completed**: 10
+- **Completed**: 12
 - **In Progress**: 0
 - **Remaining**: 17
 

@@ -13,6 +13,8 @@ type HistoryState = {
     contrast: number;
     saturation: number;
     temperature: number;
+    hue: number;
+    exposure: number;
   };
   blurParams: {
     sigma: number;
@@ -31,6 +33,8 @@ type State = {
     contrast: number;
     saturation: number;
     temperature: number;
+    hue: number;
+    exposure: number;
   };
   resizeParams: {
     width: number;
@@ -64,7 +68,7 @@ const initialState: State = {
   originalImage: null,
   processedImageUrl: null,
   isLoading: true,
-  params: { brightness: 0, contrast: 0, saturation: 0, temperature: 0 },
+  params: { brightness: 0, contrast: 0, saturation: 0, temperature: 0, hue: 0, exposure: 0 },
   resizeParams: { width: 800, height: 600, aspectLocked: true },
   blurParams: { sigma: 0 },
   sharpenParams: { amount: 0 },
@@ -312,6 +316,16 @@ function App() {
         imageData = wasm.adjust_contrast(imageData, state.params.contrast * 0.1); // スケール調整
         imageData = wasm.adjust_saturation(imageData, state.params.saturation * 0.1); // スケール調整
         imageData = wasm.adjust_white_balance(imageData, state.params.temperature);
+        
+        // Apply hue adjustment if shift != 0
+        if (state.params.hue !== 0) {
+          imageData = wasm.adjust_hue(imageData, state.params.hue);
+        }
+        
+        // Apply exposure adjustment if stops != 0
+        if (state.params.exposure !== 0) {
+          imageData = wasm.adjust_exposure(imageData, state.params.exposure);
+        }
         
         // Apply blur if sigma > 0
         if (state.blurParams.sigma > 0) {
@@ -1015,16 +1029,58 @@ function App() {
             <div className="panel-content">
               {Object.keys(state.params).map((key) => {
                 const paramKey = key as keyof State['params'];
-                const min = -100;
-                const max = 100;
+                
+                // Set appropriate ranges and labels for each parameter
+                let min, max, label;
+                switch (paramKey) {
+                  case 'hue':
+                    min = -180;
+                    max = 180;
+                    label = '色相 (Hue)';
+                    break;
+                  case 'brightness':
+                    min = -100;
+                    max = 100;
+                    label = '明度 (Brightness)';
+                    break;
+                  case 'contrast':
+                    min = -100;
+                    max = 100;
+                    label = 'コントラスト (Contrast)';
+                    break;
+                  case 'saturation':
+                    min = -100;
+                    max = 100;
+                    label = '彩度 (Saturation)';
+                    break;
+                  case 'temperature':
+                    min = -100;
+                    max = 100;
+                    label = '色温度 (Temperature)';
+                    break;
+                  case 'exposure':
+                    min = -3;
+                    max = 3;
+                    label = '露出 (Exposure)';
+                    break;
+                  default:
+                    min = -100;
+                    max = 100;
+                    label = key;
+                }
+                
+                // Set step based on parameter type
+                const step = paramKey === 'exposure' ? 0.1 : 1;
+                
                 return (
                   <div key={key} className="adjustment-item">
-                    <label className="adjustment-label">{key}</label>
+                    <label className="adjustment-label">{label}</label>
                     <div className="adjustment-control">
                       <input 
                         type="range" 
                         min={min} 
                         max={max} 
+                        step={step}
                         value={state.params[paramKey]} 
                         onChange={(e) => handleParamChange(paramKey, e.target.value)}
                         className="adjustment-slider"
@@ -1032,6 +1088,9 @@ function App() {
                       />
                       <input 
                         type="number" 
+                        min={min} 
+                        max={max} 
+                        step={step}
                         value={state.params[paramKey]} 
                         onChange={(e) => handleParamChange(paramKey, e.target.value)}
                         className="adjustment-input"
