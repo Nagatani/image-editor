@@ -15,12 +15,20 @@ type HistoryState = {
     temperature: number;
     hue: number;
     exposure: number;
+    vibrance: number;
   };
   blurParams: {
     sigma: number;
   };
   sharpenParams: {
     amount: number;
+  };
+  vignetteParams: {
+    strength: number;
+    radius: number;
+  };
+  noiseReductionParams: {
+    strength: number;
   };
 };
 
@@ -35,6 +43,7 @@ type State = {
     temperature: number;
     hue: number;
     exposure: number;
+    vibrance: number;
   };
   resizeParams: {
     width: number;
@@ -47,6 +56,13 @@ type State = {
   sharpenParams: {
     amount: number;
   };
+  vignetteParams: {
+    strength: number;
+    radius: number;
+  };
+  noiseReductionParams: {
+    strength: number;
+  };
   history: HistoryState[];
   historyIndex: number;
 };
@@ -57,6 +73,8 @@ type Action =
   | { type: 'SET_RESIZE_PARAM'; payload: { key: keyof State['resizeParams']; value: number | boolean } }
   | { type: 'SET_BLUR_PARAM'; payload: { key: keyof State['blurParams']; value: number } }
   | { type: 'SET_SHARPEN_PARAM'; payload: { key: keyof State['sharpenParams']; value: number } }
+  | { type: 'SET_VIGNETTE_PARAM'; payload: { key: keyof State['vignetteParams']; value: number } }
+  | { type: 'SET_NOISE_REDUCTION_PARAM'; payload: { key: keyof State['noiseReductionParams']; value: number } }
   | { type: 'START_LOADING' }
   | { type: 'SET_PROCESSED_IMAGE'; payload: string }
   | { type: 'RESET_PARAMS' }
@@ -68,10 +86,12 @@ const initialState: State = {
   originalImage: null,
   processedImageUrl: null,
   isLoading: true,
-  params: { brightness: 0, contrast: 0, saturation: 0, temperature: 0, hue: 0, exposure: 0 },
+  params: { brightness: 0, contrast: 0, saturation: 0, temperature: 0, hue: 0, exposure: 0, vibrance: 0 },
   resizeParams: { width: 800, height: 600, aspectLocked: true },
   blurParams: { sigma: 0 },
   sharpenParams: { amount: 0 },
+  vignetteParams: { strength: 0, radius: 50 },
+  noiseReductionParams: { strength: 0 },
   history: [],
   historyIndex: -1,
 };
@@ -128,12 +148,16 @@ function reducer(state: State, action: Action): State {
       return { ...state, blurParams: { ...state.blurParams, [action.payload.key]: action.payload.value } };
     case 'SET_SHARPEN_PARAM':
       return { ...state, sharpenParams: { ...state.sharpenParams, [action.payload.key]: action.payload.value } };
+    case 'SET_VIGNETTE_PARAM':
+      return { ...state, vignetteParams: { ...state.vignetteParams, [action.payload.key]: action.payload.value } };
+    case 'SET_NOISE_REDUCTION_PARAM':
+      return { ...state, noiseReductionParams: { ...state.noiseReductionParams, [action.payload.key]: action.payload.value } };
     case 'START_LOADING':
       return { ...state, isLoading: true };
     case 'SET_PROCESSED_IMAGE':
       return { ...state, isLoading: false, processedImageUrl: action.payload };
     case 'RESET_PARAMS':
-      return { ...state, params: initialState.params, blurParams: initialState.blurParams, sharpenParams: initialState.sharpenParams };
+      return { ...state, params: initialState.params, blurParams: initialState.blurParams, sharpenParams: initialState.sharpenParams, vignetteParams: initialState.vignetteParams, noiseReductionParams: initialState.noiseReductionParams };
     case 'SAVE_TO_HISTORY': {
       const currentHistoryState: HistoryState = {
         originalImage: state.originalImage,
@@ -141,6 +165,8 @@ function reducer(state: State, action: Action): State {
         params: { ...state.params },
         blurParams: { ...state.blurParams },
         sharpenParams: { ...state.sharpenParams },
+        vignetteParams: { ...state.vignetteParams },
+        noiseReductionParams: { ...state.noiseReductionParams },
       };
       
       console.log('SAVE_TO_HISTORY:', {
@@ -181,6 +207,8 @@ function reducer(state: State, action: Action): State {
         params: { ...prevState.params },
         blurParams: { ...prevState.blurParams },
         sharpenParams: { ...prevState.sharpenParams },
+        vignetteParams: { ...prevState.vignetteParams },
+        noiseReductionParams: { ...prevState.noiseReductionParams },
         historyIndex: state.historyIndex - 1,
       };
     }
@@ -200,6 +228,8 @@ function reducer(state: State, action: Action): State {
         params: { ...nextState.params },
         blurParams: { ...nextState.blurParams },
         sharpenParams: { ...nextState.sharpenParams },
+        vignetteParams: { ...nextState.vignetteParams },
+        noiseReductionParams: { ...nextState.noiseReductionParams },
         historyIndex: state.historyIndex + 1,
       };
     }
@@ -327,6 +357,11 @@ function App() {
           imageData = wasm.adjust_exposure(imageData, state.params.exposure);
         }
         
+        // Apply vibrance adjustment if amount != 0
+        if (state.params.vibrance !== 0) {
+          imageData = wasm.adjust_vibrance(imageData, state.params.vibrance);
+        }
+        
         // Apply blur if sigma > 0
         if (state.blurParams.sigma > 0) {
           imageData = wasm.gaussian_blur(imageData, state.blurParams.sigma);
@@ -336,17 +371,27 @@ function App() {
         if (state.sharpenParams.amount > 0) {
           imageData = wasm.sharpen(imageData, state.sharpenParams.amount);
         }
+        
+        // Apply vignette if strength > 0
+        if (state.vignetteParams.strength > 0) {
+          imageData = wasm.apply_vignette(imageData, state.vignetteParams.strength, state.vignetteParams.radius);
+        }
+        
+        // Apply noise reduction if strength > 0
+        if (state.noiseReductionParams.strength > 0) {
+          imageData = wasm.reduce_noise(imageData, state.noiseReductionParams.strength);
+        }
 
         const url = URL.createObjectURL(new Blob([imageData]));
         dispatch({ type: 'SET_PROCESSED_IMAGE', payload: url });
     }, 50);
-  }, [state.originalImage, state.params, state.blurParams, state.sharpenParams, isWasmReady]);
+  }, [state.originalImage, state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, isWasmReady]);
 
   useEffect(() => {
     if (state.originalImage) {
       applyChanges();
     }
-  }, [state.params, state.blurParams, state.sharpenParams, applyChanges]);
+  }, [state.params, state.blurParams, state.sharpenParams, state.vignetteParams, state.noiseReductionParams, applyChanges]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -523,6 +568,14 @@ function App() {
 
   const handleSharpenParamChange = (key: keyof State['sharpenParams'], value: string) => {
     dispatch({ type: 'SET_SHARPEN_PARAM', payload: { key, value: Number(value) } });
+  };
+
+  const handleVignetteParamChange = (key: keyof State['vignetteParams'], value: string) => {
+    dispatch({ type: 'SET_VIGNETTE_PARAM', payload: { key, value: Number(value) } });
+  };
+
+  const handleNoiseReductionParamChange = (key: keyof State['noiseReductionParams'], value: string) => {
+    dispatch({ type: 'SET_NOISE_REDUCTION_PARAM', payload: { key, value: Number(value) } });
   };
 
   const handleSaveImage = () => {
@@ -1024,6 +1077,91 @@ function App() {
 
           <div className="panel-group">
             <div className="panel-header">
+              <h3>ビネット効果</h3>
+            </div>
+            <div className="panel-content">
+              <div className="adjustment-item">
+                <label className="adjustment-label">強度 (Strength)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={0} 
+                    max={100} 
+                    value={state.vignetteParams.strength} 
+                    onChange={(e) => handleVignetteParamChange('strength', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.vignetteParams.strength} 
+                    onChange={(e) => handleVignetteParamChange('strength', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={0}
+                    max={100}
+                  />
+                </div>
+              </div>
+              <div className="adjustment-item">
+                <label className="adjustment-label">半径 (Radius)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={0} 
+                    max={100} 
+                    value={state.vignetteParams.radius} 
+                    onChange={(e) => handleVignetteParamChange('radius', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.vignetteParams.radius} 
+                    onChange={(e) => handleVignetteParamChange('radius', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={0}
+                    max={100}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel-group">
+            <div className="panel-header">
+              <h3>ノイズ除去</h3>
+            </div>
+            <div className="panel-content">
+              <div className="adjustment-item">
+                <label className="adjustment-label">強度 (Strength)</label>
+                <div className="adjustment-control">
+                  <input 
+                    type="range" 
+                    min={0} 
+                    max={100} 
+                    value={state.noiseReductionParams.strength} 
+                    onChange={(e) => handleNoiseReductionParamChange('strength', e.target.value)}
+                    className="adjustment-slider"
+                    disabled={!state.originalImage}
+                  />
+                  <input 
+                    type="number" 
+                    value={state.noiseReductionParams.strength} 
+                    onChange={(e) => handleNoiseReductionParamChange('strength', e.target.value)}
+                    className="adjustment-input"
+                    disabled={!state.originalImage}
+                    min={0}
+                    max={100}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel-group">
+            <div className="panel-header">
               <h3>画像調整</h3>
             </div>
             <div className="panel-content">
@@ -1062,6 +1200,11 @@ function App() {
                     min = -3;
                     max = 3;
                     label = '露出 (Exposure)';
+                    break;
+                  case 'vibrance':
+                    min = -100;
+                    max = 100;
+                    label = 'バイブランス (Vibrance)';
                     break;
                   default:
                     min = -100;

@@ -71,20 +71,20 @@ This document tracks the implementation progress of new features for the Rust/WA
   - [ ] Add `adjust_shadows(amount: f32)` function in Rust
   - [ ] Add highlight/shadow sliders in React UI
   - [ ] Test implementation
-- [ ] **Vibrance** - Natural saturation enhancement
-  - [ ] Add `adjust_vibrance(amount: f32)` function in Rust
-  - [ ] Add vibrance slider in React UI
-  - [ ] Test implementation
+- [x] **Vibrance** - Natural saturation enhancement
+  - [x] Add `adjust_vibrance(amount: f32)` function in Rust
+  - [x] Add vibrance slider in React UI
+  - [x] Test implementation
 
 ### 2.2 Practical Effects
-- [ ] **Vignette Effect** - Peripheral darkening
-  - [ ] Add `apply_vignette(strength: f32, radius: f32)` function in Rust
-  - [ ] Add vignette controls in React UI
-  - [ ] Test implementation
-- [ ] **Noise Reduction** - Image quality improvement
-  - [ ] Add `reduce_noise(strength: f32)` function in Rust
-  - [ ] Add noise reduction slider in React UI
-  - [ ] Test implementation
+- [x] **Vignette Effect** - Peripheral darkening
+  - [x] Add `apply_vignette(strength: f32, radius: f32)` function in Rust
+  - [x] Add vignette controls in React UI
+  - [x] Test implementation
+- [x] **Noise Reduction** - Image quality improvement
+  - [x] Add `reduce_noise(strength: f32)` function in Rust
+  - [x] Add noise reduction slider in React UI
+  - [x] Test implementation
 - [ ] **Emboss Effect** - 3D texture appearance
   - [ ] Add `apply_emboss()` function in Rust
   - [ ] Add emboss button in React UI
@@ -198,7 +198,7 @@ This document tracks the implementation progress of new features for the Rust/WA
 ## Status Tracking
 
 - **Total Features**: 27 major features
-- **Completed**: 12
+- **Completed**: 15
 - **In Progress**: 0
 - **Remaining**: 17
 

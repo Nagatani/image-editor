@@ -461,3 +461,255 @@ pub fn adjust_exposure(image_data: &[u8], stops: f32) -> Vec<u8> {
     log("Exposure adjustment successful");
     to_bytes(&processed)
 }
+
+#[wasm_bindgen]
+pub fn adjust_vibrance(image_data: &[u8], amount: f32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Vibrance adjustment function called");
+    
+    if amount == 0.0 {
+        log("No vibrance adjustment needed, returning original image");
+        return image_data.to_vec();
+    }
+    
+    // Convert to RGB8 format for pixel manipulation
+    let mut rgb_img = img.to_rgb8();
+    
+    // Normalize amount to -1.0 to 1.0 range
+    let factor = amount / 100.0;
+    
+    for pixel in rgb_img.pixels_mut() {
+        let r = pixel[0] as f32 / 255.0;
+        let g = pixel[1] as f32 / 255.0;
+        let b = pixel[2] as f32 / 255.0;
+        
+        // Calculate current saturation level
+        let max = r.max(g.max(b));
+        let min = r.min(g.min(b));
+        let delta = max - min;
+        
+        // Only adjust pixels that aren't already highly saturated
+        // Vibrance protects skin tones and already saturated colors
+        if max > 0.0 && delta > 0.01 {
+            let current_saturation = delta / max;
+            
+            // Create a protection factor - less effect on already saturated colors
+            // and on skin tones (reddish colors)
+            let skin_tone_protection = if r > g && r > b {
+                // Reduce effect on reddish colors (potential skin tones)
+                0.3
+            } else {
+                1.0
+            };
+            
+            let saturation_protection = 1.0 - current_saturation.powf(0.5);
+            let protection_factor = skin_tone_protection * saturation_protection;
+            
+            // Apply vibrance adjustment with protection
+            let adjusted_factor = factor * protection_factor;
+            
+            // Convert RGB to HSV for saturation adjustment
+            let mut h = if delta == 0.0 {
+                0.0
+            } else if max == r {
+                60.0 * (((g - b) / delta) % 6.0)
+            } else if max == g {
+                60.0 * ((b - r) / delta + 2.0)
+            } else {
+                60.0 * ((r - g) / delta + 4.0)
+            };
+            
+            if h < 0.0 {
+                h += 360.0;
+            }
+            
+            let s = current_saturation;
+            let v = max;
+            
+            // Adjust saturation with vibrance protection
+            let new_s = (s + adjusted_factor * (1.0 - s)).clamp(0.0, 1.0);
+            
+            // Convert HSV back to RGB
+            let c = v * new_s;
+            let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+            let m = v - c;
+            
+            let (r_prime, g_prime, b_prime) = if h < 60.0 {
+                (c, x, 0.0)
+            } else if h < 120.0 {
+                (x, c, 0.0)
+            } else if h < 180.0 {
+                (0.0, c, x)
+            } else if h < 240.0 {
+                (0.0, x, c)
+            } else if h < 300.0 {
+                (x, 0.0, c)
+            } else {
+                (c, 0.0, x)
+            };
+            
+            let new_r = ((r_prime + m) * 255.0).clamp(0.0, 255.0) as u8;
+            let new_g = ((g_prime + m) * 255.0).clamp(0.0, 255.0) as u8;
+            let new_b = ((b_prime + m) * 255.0).clamp(0.0, 255.0) as u8;
+            
+            pixel[0] = new_r;
+            pixel[1] = new_g;
+            pixel[2] = new_b;
+        }
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(rgb_img);
+    log("Vibrance adjustment successful");
+    to_bytes(&processed)
+}
+
+#[wasm_bindgen]
+pub fn apply_vignette(image_data: &[u8], strength: f32, radius: f32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Vignette effect function called");
+    
+    if strength == 0.0 {
+        log("No vignette effect needed, returning original image");
+        return image_data.to_vec();
+    }
+    
+    // Convert to RGB8 format for pixel manipulation
+    let mut rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    
+    // Calculate center of the image
+    let center_x = width as f32 / 2.0;
+    let center_y = height as f32 / 2.0;
+    
+    // Calculate maximum distance from center to corner
+    let max_distance = ((center_x * center_x) + (center_y * center_y)).sqrt();
+    
+    // Normalize strength and radius
+    let vignette_strength = strength / 100.0; // 0.0 to 1.0
+    let vignette_radius = radius / 100.0; // 0.0 to 1.0
+    
+    // Calculate effective radius for vignette
+    let effective_radius = max_distance * vignette_radius;
+    
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = rgb_img.get_pixel_mut(x, y);
+            
+            // Calculate distance from center
+            let dx = x as f32 - center_x;
+            let dy = y as f32 - center_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+            
+            // Calculate vignette factor
+            let vignette_factor = if distance <= effective_radius {
+                1.0 // No darkening within the radius
+            } else {
+                // Smooth transition from radius to edge
+                let normalized_distance = (distance - effective_radius) / (max_distance - effective_radius);
+                let falloff = 1.0 - (normalized_distance * vignette_strength);
+                falloff.max(0.0) // Prevent negative values
+            };
+            
+            // Apply vignette by darkening the pixel
+            let r = pixel[0] as f32;
+            let g = pixel[1] as f32;
+            let b = pixel[2] as f32;
+            
+            pixel[0] = (r * vignette_factor).clamp(0.0, 255.0) as u8;
+            pixel[1] = (g * vignette_factor).clamp(0.0, 255.0) as u8;
+            pixel[2] = (b * vignette_factor).clamp(0.0, 255.0) as u8;
+        }
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(rgb_img);
+    log("Vignette effect successful");
+    to_bytes(&processed)
+}
+
+#[wasm_bindgen]
+pub fn reduce_noise(image_data: &[u8], strength: f32) -> Vec<u8> {
+    let img = load_image(image_data);
+    log("Noise reduction function called");
+    
+    if strength <= 0.0 {
+        log("No noise reduction needed, returning original image");
+        return image_data.to_vec();
+    }
+    
+    // Convert to RGB8 format for pixel manipulation
+    let rgb_img = img.to_rgb8();
+    let (width, height) = rgb_img.dimensions();
+    
+    // Normalize strength to determine filter size and intensity
+    let normalized_strength = strength / 100.0; // 0.0 to 1.0
+    
+    // Create output buffer
+    let mut output = image::ImageBuffer::new(width, height);
+    
+    // Apply bilateral filter-like noise reduction
+    // This preserves edges while smoothing noise
+    let filter_radius = (normalized_strength * 3.0 + 1.0) as i32; // 1 to 4 pixels
+    let spatial_sigma = normalized_strength * 2.0 + 0.5; // Spatial smoothing
+    let intensity_sigma = normalized_strength * 30.0 + 10.0; // Intensity threshold
+    
+    for y in 0..height {
+        for x in 0..width {
+            let center_pixel = rgb_img.get_pixel(x, y);
+            let center_r = center_pixel[0] as f32;
+            let center_g = center_pixel[1] as f32;
+            let center_b = center_pixel[2] as f32;
+            
+            let mut sum_r = 0.0;
+            let mut sum_g = 0.0;
+            let mut sum_b = 0.0;
+            let mut weight_sum = 0.0;
+            
+            // Sample pixels in the neighborhood
+            for dy in -filter_radius..=filter_radius {
+                for dx in -filter_radius..=filter_radius {
+                    let nx = (x as i32 + dx).clamp(0, width as i32 - 1) as u32;
+                    let ny = (y as i32 + dy).clamp(0, height as i32 - 1) as u32;
+                    
+                    let neighbor_pixel = rgb_img.get_pixel(nx, ny);
+                    let neighbor_r = neighbor_pixel[0] as f32;
+                    let neighbor_g = neighbor_pixel[1] as f32;
+                    let neighbor_b = neighbor_pixel[2] as f32;
+                    
+                    // Calculate spatial weight (Gaussian)
+                    let spatial_distance = ((dx * dx + dy * dy) as f32).sqrt();
+                    let spatial_weight = (-spatial_distance * spatial_distance / (2.0 * spatial_sigma * spatial_sigma)).exp();
+                    
+                    // Calculate intensity weight (preserve edges)
+                    let intensity_diff_r = (center_r - neighbor_r).abs();
+                    let intensity_diff_g = (center_g - neighbor_g).abs();
+                    let intensity_diff_b = (center_b - neighbor_b).abs();
+                    let intensity_diff = (intensity_diff_r + intensity_diff_g + intensity_diff_b) / 3.0;
+                    let intensity_weight = (-intensity_diff * intensity_diff / (2.0 * intensity_sigma * intensity_sigma)).exp();
+                    
+                    // Combine weights
+                    let total_weight = spatial_weight * intensity_weight;
+                    
+                    sum_r += neighbor_r * total_weight;
+                    sum_g += neighbor_g * total_weight;
+                    sum_b += neighbor_b * total_weight;
+                    weight_sum += total_weight;
+                }
+            }
+            
+            // Normalize and apply
+            if weight_sum > 0.0 {
+                let filtered_r = (sum_r / weight_sum).clamp(0.0, 255.0) as u8;
+                let filtered_g = (sum_g / weight_sum).clamp(0.0, 255.0) as u8;
+                let filtered_b = (sum_b / weight_sum).clamp(0.0, 255.0) as u8;
+                
+                output.put_pixel(x, y, image::Rgb([filtered_r, filtered_g, filtered_b]));
+            } else {
+                output.put_pixel(x, y, *center_pixel);
+            }
+        }
+    }
+    
+    let processed = image::DynamicImage::ImageRgb8(output);
+    log("Noise reduction successful");
+    to_bytes(&processed)
+}
