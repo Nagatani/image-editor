@@ -2,6 +2,8 @@
 
 A professional web-based image editor built with Rust and WebAssembly, featuring high-performance image processing capabilities and a modern flat design UI inspired by desktop editing software.
 
+https://nagatani.github.io/image-editor/
+
 ## ✨ Features
 
 ### 🎨 Complete Image Processing Suite
